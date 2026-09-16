@@ -4,7 +4,11 @@
 서비스가 종료된 **알씨 동영상 만들기**의 워크플로(간편만들기 → 상세꾸미기 → 만들기)를 그대로 계승하고,
 비트 싱크·세로 영상·4K·자동 저장 같은 기능을 더했습니다.
 
-## 실행
+## 바로 사용하기
+- 웹: **https://runinqvic.vercel.app** (Edge/Chrome, 설치 불필요)
+- 소스: https://github.com/SamulChung/RuninqVic
+
+## PC에서 실행
 1. `RuninqVic.bat` 을 더블클릭합니다. (Edge 또는 Chrome 이 앱 창으로 열립니다)
 2. 또는 `index.html` 을 Edge/Chrome 으로 엽니다.
 
