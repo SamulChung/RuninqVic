@@ -62,8 +62,12 @@
     if (p.slides.length) select(p.slides[0].id, true);
   }
 
+  const isMobile = () => window.matchMedia('(max-width: 900px), (pointer: coarse) and (max-width: 1100px)').matches;
+
   async function makeImageAsset(blob) {
-    let bmp = await createImageBitmap(blob, { imageOrientation: 'from-image' });
+    let bmp;
+    try { bmp = await createImageBitmap(blob, { imageOrientation: 'from-image' }); }
+    catch (e) { bmp = await createImageBitmap(blob); } /* older Safari: no orientation option */
     if (Math.max(bmp.width, bmp.height) > MAX_EDGE) {
       const k = MAX_EDGE / Math.max(bmp.width, bmp.height);
       const small = await createImageBitmap(bmp, { resizeWidth: Math.round(bmp.width * k), resizeHeight: Math.round(bmp.height * k), resizeQuality: 'high' });
@@ -153,6 +157,7 @@
       if (p.beatSync && S.beats.length) s += ' · 비트 ' + S.beats.length + '개에 맞춤';
       else if (p.fitToMusic && ml > 0) s += ' · 장당 평균 ' + avg.toFixed(1) + '초';
       if (ml > 0 && !p.fitToMusic && !p.beatSync) s += (ml < S.tl.total ? (p.music.loop ? ' · 음악이 짧아 반복됩니다' : ' · 음악이 ' + RV.fmtTime(ml) + '에 끝납니다') : ' · 음악이 영상 끝에서 페이드아웃됩니다');
+      if (isMobile() && p.slides.length > 60) s += ' · 폰에서는 60장 이하를 권장합니다';
       info.textContent = s;
     }
     const bi = $('#beatInfo');
@@ -365,11 +370,20 @@
     const sel = $('.tl-item.sel'); if (sel) sel.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     const has = !!selectedSlide();
     ['#btnDelete', '#btnRotL', '#btnRotR'].forEach((id) => ($(id).disabled = !has));
+    const i = selectedIndex();
+    $('#btnMoveL').disabled = i <= 0; $('#btnMoveR').disabled = i < 0 || i >= S.project.slides.length - 1;
   }
   function select(id, doSeek) {
     S.selectedId = id; markSelection(); syncSlideControls();
     const it = S.tl.byId[id];
     if (doSeek && it) seek(Math.min(it.end - 0.05, it.start + it.trIn + Math.min(0.7, it.duration * 0.3)));
+  }
+  /* move the selected slide one step (touch-friendly alternative to drag & drop) */
+  function moveSlide(dir) {
+    const p = S.project, i = selectedIndex(); if (i < 0) return;
+    const j = i + dir; if (j < 0 || j >= p.slides.length) return;
+    [p.slides[i], p.slides[j]] = [p.slides[j], p.slides[i]];
+    update(); select(p.slides[j].id, false);
   }
   function moveSelection(dir) {
     const p = S.project; if (!p.slides.length) return;
@@ -532,7 +546,7 @@
   function closeModal(id) { $('#' + id).classList.remove('open'); }
 
   /* ---------------- export ---------------- */
-  let exportAbort = null, exportCaps = null;
+  let exportAbort = null, exportCaps = null, shareFile = null;
   async function openExport() {
     if (!S.tl.items.length) { toast('먼저 사진을 추가하세요.', true); return; }
     stopPlayback(false);
@@ -540,6 +554,8 @@
     $('#exName').value = p.export.name || p.name || '내 영상';
     $('#exRes').value = p.export.res; $('#exFps').value = String(p.export.fps); $('#exQuality').value = p.export.quality;
     $('#exPreset').value = 'pc';
+    if (isMobile() && !p.export.name) { $('#exPreset').value = 'sns'; $('#exRes').value = '720p'; $('#exFps').value = '30'; $('#exQuality').value = 'medium'; }
+    $('#exShare').hidden = true; shareFile = null;
     $('#exportForm').hidden = false; $('#exportProgress').hidden = true; $('#exportDone').hidden = true;
     $('#exStart').hidden = false; $('#exClose').hidden = true; $('#exCancel').hidden = false; $('#exStart').disabled = false;
     openModal('exportModal');
@@ -593,7 +609,14 @@
       const secs = ((performance.now() - t0) / 1000).toFixed(0);
       $('#exportProgress').hidden = true; $('#exportDone').hidden = false; $('#exCancel').hidden = true; $('#exClose').hidden = false;
       const a = $('#exDownload');
-      if (r.blob) { a.href = URL.createObjectURL(r.blob); a.download = fname; a.hidden = false; a.textContent = fname + ' 다운로드 (' + (r.blob.size / 1048576).toFixed(1) + ' MB)'; $('#exDoneMsg').textContent = '동영상이 완성되었습니다! (' + secs + '초 소요)'; }
+      if (r.blob) {
+        a.href = URL.createObjectURL(r.blob); a.download = fname; a.hidden = false; a.textContent = fname + ' 다운로드 (' + (r.blob.size / 1048576).toFixed(1) + ' MB)';
+        $('#exDoneMsg').textContent = '동영상이 완성되었습니다! (' + secs + '초 소요)';
+        try {
+          const f = new File([r.blob], fname, { type: r.mime });
+          if (navigator.canShare && navigator.canShare({ files: [f] })) { shareFile = f; $('#exShare').hidden = false; }
+        } catch (e) { shareFile = null; }
+      }
       else { a.hidden = true; $('#exDoneMsg').textContent = fname + ' 파일로 저장했습니다. (' + secs + '초 소요, ' + r.video + (r.audio ? ' + ' + r.audio : '') + ')'; }
       toast('동영상 만들기 완료');
     } catch (e) {
@@ -740,6 +763,15 @@
     ['#exRes', '#exFps', '#exQuality'].forEach((s) => on(s, 'change', () => { $('#exPreset').value = 'custom'; refreshExportInfo(true); }));
     on('#exBitrate', 'change', () => refreshExportInfo(false));
     on('#exStart', 'click', startExport);
+    on('#exShare', 'click', async () => { if (!shareFile) return; try { await navigator.share({ files: [shareFile], title: shareFile.name }); } catch (e) { if (e.name !== 'AbortError') toast('공유할 수 없습니다: ' + e.message, true); } });
+    on('#btnMoveL', 'click', () => moveSlide(-1)); on('#btnMoveR', 'click', () => moveSlide(1));
+    on('#btnStageOpts', 'click', (e) => { const onNow = document.body.classList.toggle('show-opts'); e.currentTarget.classList.toggle('on', onNow); sizePreview(); drawFrame(); });
+
+    /* PWA install prompt */
+    let installEvt = null;
+    window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installEvt = e; $('#btnInstall').hidden = false; });
+    on('#btnInstall', 'click', async () => { if (!installEvt) return; installEvt.prompt(); await installEvt.userChoice.catch(() => {}); installEvt = null; $('#btnInstall').hidden = true; });
+    window.addEventListener('appinstalled', () => { $('#btnInstall').hidden = true; toast('홈 화면에 추가되었습니다.'); });
     on('#exCancel', 'click', () => { if (exportAbort) exportAbort.abort(); else closeModal('exportModal'); });
     on('#exClose', 'click', () => closeModal('exportModal'));
 
@@ -765,6 +797,14 @@
   /* ---------------- boot ---------------- */
   async function init() {
     buildTiles(); bind();
+    if ('serviceWorker' in navigator && /^https?:/.test(location.protocol)) {
+      navigator.serviceWorker.register('sw.js').then((reg) => {
+        reg.addEventListener('updatefound', () => {
+          const w = reg.installing; if (!w) return;
+          w.addEventListener('statechange', () => { if (w.state === 'installed' && navigator.serviceWorker.controller) toast('새 버전이 준비되었습니다. 새로고침하면 적용됩니다.'); });
+        });
+      }).catch(() => {});
+    }
     S.project = RV.createProject();
     let saved = null;
     try { saved = await RV.store.loadProject(); } catch (e) { console.warn('IDB unavailable', e); }

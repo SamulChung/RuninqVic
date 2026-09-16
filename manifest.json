@@ -1,0 +1,17 @@
+{
+  "name": "RuninqVic - 사진으로 동영상 만들기",
+  "short_name": "RuninqVic",
+  "description": "사진과 음악으로 MP4 슬라이드쇼 동영상을 만드는 앱",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#16171b",
+  "theme_color": "#16171b",
+  "lang": "ko",
+  "icons": [
+    { "src": "assets/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "assets/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "assets/icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

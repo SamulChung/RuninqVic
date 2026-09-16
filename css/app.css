@@ -180,3 +180,76 @@ body.dragging .drop-overlay { display: grid; }
 .trim input[type=range]::-webkit-slider-runnable-track { background: transparent; height: 34px; }
 .trim input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; pointer-events: auto; width: 14px; height: 26px; margin-top: 4px; border-radius: 4px; background: #fff; border: 2px solid var(--accent); cursor: ew-resize; box-shadow: 0 2px 6px rgba(0,0,0,.5); }
 .tl-item .cap-dot.vid { background: var(--accent); }
+
+/* ---------- mobile (phones & small tablets) ---------- */
+button .ico { display: none; }
+.mobile-only { display: none; }
+@media (max-width: 900px), (pointer: coarse) and (max-width: 1100px) {
+  html, body { height: 100dvh; }
+  body { grid-template-rows: 48px auto auto minmax(0, 1fr); grid-template-columns: minmax(0, 1fr); font-size: 14px; padding-bottom: env(safe-area-inset-bottom); overflow-x: hidden; }
+  .topbar, .stage, .timeline, .panel, .controls, .stage-opts, .tl-head { min-width: 0; max-width: 100vw; }
+  .stage-opts, .tl-head { flex-wrap: wrap; }
+  .tl-actions { margin-left: 0; flex-wrap: wrap; }
+  .tl-title { flex: 1 1 auto; }
+  .brand .name { display: none; }
+  .proj-name { flex: 1 1 60px; width: 60px; }
+  .layout { display: contents; }
+  .stage { order: 1; grid-template-rows: auto auto auto; }
+  .timeline { order: 2; }
+  .panel { order: 3; border-left: 0; border-top: 1px solid var(--line); }
+  .topbar { padding: 0 8px; gap: 8px; }
+  .brand .ver { display: none; }
+  .proj-name { flex: 1; width: auto; min-width: 0; font-size: 13px; }
+  .top-actions { gap: 4px; }
+  .top-actions button .txt, .tl-actions button .txt { display: none; }
+  button .ico { display: inline; }
+  .top-actions button, .tl-actions button { padding: 6px 9px; min-height: 36px; }
+  .preview-wrap { height: min(56.25vw, 36dvh); padding: 6px 8px; }
+  #preview { border-radius: 3px; }
+  .welcome h1 { font-size: 18px; } .welcome p { font-size: 12px; } .welcome .w-logo { width: 48px; height: 48px; font-size: 20px; border-radius: 12px; margin-bottom: 8px; }
+  .controls { padding: 6px 8px; gap: 8px; }
+  .tc { min-width: 0; font-size: 11px; white-space: nowrap; }
+  #scrub { min-width: 0; }
+  .ctl-btns .vsep { display: none; }
+  button.icon { width: 38px; height: 38px; }
+  .stage-opts { padding: 6px 8px; gap: 6px 12px; font-size: 12px; display: none; }
+  body.show-opts .stage-opts { display: flex; }
+  .mobile-only { display: inline-block; }
+  #btnStageOpts.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .tl-title .muted, .tl-actions #sortSel { display: none; }
+  .stage-opts select { padding: 5px 6px; }
+  .tl-head { padding: 4px 8px; gap: 6px; }
+  .tl-title { font-size: 12px; }
+  .tl-actions .vsep { display: none; }
+  .tl-actions #sortSel { width: 74px; padding: 5px 4px; font-size: 12px; }
+  .tl-strip { padding: 6px 8px; gap: 6px; }
+  .tl-item { width: 104px; }
+  .tl-item .thumb { height: 50px; }
+  .tl-item .meta { padding: 3px 5px; font-size: 10px; }
+  .tl-item .cap-dot, .tl-item .rot { font-size: 9px; }
+  .tl-empty { font-size: 12px; }
+  .tabs button { padding: 10px 2px; font-size: 12.5px; }
+  .tab-page { padding: 10px 12px 48px; }
+  .step-h { flex-wrap: wrap; }
+  .step-btn { margin-left: auto; }
+  .tile-grid { gap: 6px; }
+  .tile { grid-template-rows: 46px auto; }
+  .tile canvas, .tile .ico { height: 46px; }
+  .two { grid-template-columns: 116px 1fr; gap: 10px; }
+  .pos-grid { grid-template-columns: repeat(3, 32px); }
+  .pos-grid button { height: 32px; }
+  button, select, input[type=text], input[type=number] { min-height: 36px; }
+  button.mini { min-height: 30px; }
+  .modal-box { width: 96vw; max-height: 92dvh; border-radius: 12px; }
+  .modal-body { padding: 12px 14px; }
+  .help table td { display: block; padding: 2px 0; }
+  #toast { bottom: 40dvh; width: calc(100vw - 32px); }
+  #toast div { text-align: center; }
+  .video-box { padding: 8px 10px; }
+}
+@media (max-width: 480px) {
+  .stage-opts label:not(.chk) { font-size: 11px; }
+  .stage-opts { gap: 4px 8px; }
+  .tabs button { padding: 9px 1px; font-size: 12px; }
+  .tile-grid { grid-template-columns: repeat(4, 1fr); }
+}
