@@ -83,7 +83,9 @@ function buildDocx() {
   children.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [run(C.subtitle, { size: 28, color: GRAY })], spacing: { after: 2400 } }));
   children.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [run(C.version, { size: 22, color: GRAY })] }));
   children.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [new ExternalHyperlink({ link: C.web, children: [run(C.web, { size: 22, color: '1A73E8', underline: {} })] })], spacing: { after: 80 } }));
-  children.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [run('알씨 동영상 만들기를 대체하는 사진 슬라이드쇼 동영상 제작 프로그램', { size: 20, color: GRAY })] }));
+  children.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [run('알씨 동영상 만들기를 대체하는 사진 슬라이드쇼 동영상 제작 프로그램', { size: 20, color: GRAY })], spacing: { after: 600 } }));
+  children.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [run('제작  ', { size: 22, color: GRAY }), run(C.maker, { size: 26, bold: true })] }));
+  children.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [new ExternalHyperlink({ link: C.makerUrl, children: [run('www.tenai.kr', { size: 22, color: '1A73E8', underline: {} })] })] }));
   /* TOC */
   children.push(new Paragraph({ children: [new PageBreak()] }));
   children.push(new Paragraph({ children: [run('목차', { size: 34, bold: true, color: ORANGE })], spacing: { after: 240 } }));
@@ -108,7 +110,7 @@ function buildDocx() {
     features: { updateFields: true },
     sections: [{
       properties: { page: { size: { width: 11906, height: 16838 }, margin: { top: 1300, bottom: 1200, left: 1273, right: 1273 } } },
-      headers: { default: new Header({ children: [new Paragraph({ alignment: AlignmentType.RIGHT, children: [run('RuninqVic 사용설명서 v1.2', { size: 16, color: GRAY })], border: { bottom: { style: BorderStyle.SINGLE, size: 4, color: 'DDDDDD', space: 4 } } })] }) },
+      headers: { default: new Header({ children: [new Paragraph({ alignment: AlignmentType.RIGHT, children: [run('RuninqVic 사용설명서 v1.2  ·  제작: 텐에이아이 www.tenai.kr', { size: 16, color: GRAY })], border: { bottom: { style: BorderStyle.SINGLE, size: 4, color: 'DDDDDD', space: 4 } } })] }) },
       footers: { default: new Footer({ children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ children: [PageNumber.CURRENT], font: FONT, size: 16, color: GRAY })] })] }) },
       children,
     }],
@@ -157,10 +159,10 @@ details{border:1px solid var(--line);border-radius:8px;padding:10px 14px;margin:
 a{color:#1a73e8}footer{margin-top:60px;color:var(--muted);font-size:13px;border-top:1px solid var(--line);padding-top:16px}
 @media print{header.top a.app,nav.toc{display:none}section{break-inside:auto}h2{break-after:avoid}figure{break-inside:avoid}}
 </style></head><body><div class="wrap">
-<header class="top"><div class="logo">▶</div><div><h1>RuninqVic 사용설명서</h1><div class="sub">${esc(C.subtitle)} · ${esc(C.version)}</div></div><a class="app" href="index.html">앱 열기 ›</a></header>
+<header class="top"><div class="logo">▶</div><div><h1>RuninqVic 사용설명서</h1><div class="sub">${esc(C.subtitle)} · ${esc(C.version)} · 제작 <a href="${C.makerUrl}" target="_blank" rel="noopener">${esc(C.maker)}</a></div></div><a class="app" href="index.html">앱 열기 ›</a></header>
 <nav class="toc"><b>목차</b><ul>${toc}</ul></nav>
 ${body}
-<footer>RuninqVic v1.0 · 소스: <a href="${C.repo}" target="_blank" rel="noopener">${C.repo}</a> · Word 버전: <a href="docs/manual/RuninqVic_사용설명서.docx">RuninqVic_사용설명서.docx</a></footer>
+<footer>RuninqVic · 제작: <a href="${C.makerUrl}" target="_blank" rel="noopener">${esc(C.maker)} · www.tenai.kr</a> · 소스: <a href="${C.repo}" target="_blank" rel="noopener">${C.repo}</a> · Word 버전: <a href="docs/manual/RuninqVic_사용설명서.docx">RuninqVic_사용설명서.docx</a></footer>
 </div></body></html>`;
   fs.writeFileSync(OUT_HTML, html, 'utf8');
   return html.length;

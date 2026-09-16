@@ -10,13 +10,15 @@
 <meta name="apple-mobile-web-app-title" content="RuninqVic">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
-<title>RuninqVic - 사진으로 동영상 만들기</title>
+<title>RuninqVic - 사진으로 동영상 만들기 | 텐에이아이</title>
+<meta name="author" content="텐에이아이 (TenAI) - www.tenai.kr">
+<meta name="description" content="사진과 음악으로 MP4 슬라이드쇼 동영상을 만드는 무료 웹앱. 제작: 텐에이아이 www.tenai.kr">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23ff6a1f'/%3E%3Cpath d='M24 18l22 14-22 14z' fill='%23fff'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="css/app.css">
 </head>
 <body>
 <header class="topbar">
-  <div class="brand"><span class="logo">▶</span><span class="name">RuninqVic</span><span class="ver">v1.2</span></div>
+  <div class="brand"><span class="logo">▶</span><span class="name">RuninqVic</span><span class="ver">v1.2</span><a class="maker" href="https://www.tenai.kr" target="_blank" rel="noopener" title="제작: 텐에이아이">by 텐에이아이</a></div>
   <input id="projName" class="proj-name" title="프로젝트 이름" spellcheck="false">
   <div class="top-actions">
     <button id="btnNew" title="새 프로젝트 (Ctrl+N)"><span class="ico">🆕</span><span class="txt">새로 만들기</span></button>
@@ -35,6 +37,7 @@
         <div class="w-logo">▶</div>
         <h1>RuninqVic</h1>
         <p>사진과 음악을 넣으면 멋진 영상이 됩니다.<br>사진을 이 화면에 끌어다 놓거나 오른쪽 <b>사진추가</b>를 눌러 시작해보세요.</p>
+        <p class="credit">제작 · <a href="https://www.tenai.kr" target="_blank" rel="noopener">텐에이아이 www.tenai.kr</a></p>
       </div>
       <div class="drop-overlay" id="dropOverlay">여기에 놓으면 추가됩니다</div>
     </div>
@@ -273,6 +276,7 @@
       </table>
       <h3>스마트폰에서</h3>
       <p>안드로이드 Chrome, 아이폰 Safari(16.4 이상)에서도 같은 주소로 쓸 수 있습니다. 완성된 영상은 <b>공유 · 갤러리에 저장</b> 버튼으로 갤러리나 카카오톡에 바로 보낼 수 있습니다. 브라우저 메뉴의 <b>홈 화면에 추가</b>를 누르면 앱처럼 설치됩니다. 폰에서는 720p, 사진 60장 이하를 권장합니다.</p>
+      <p class="credit-box">RuninqVic은 <b>텐에이아이(TenAI)</b>가 만들었습니다. · <a href="https://www.tenai.kr" target="_blank" rel="noopener">www.tenai.kr</a></p>
       <p class="muted">작업 내용은 이 PC의 브라우저 안에 자동 저장되며, 사진·음악은 외부로 전송되지 않습니다. 다른 PC로 옮기려면 <b>저장</b>으로 .rvproj 파일을 만드세요.</p>
     </div>
     <div class="modal-f"><a class="btn-link" href="manual.html" target="_blank" rel="noopener">📖 전체 사용설명서 보기</a><span class="grow"></span><button id="btnInstall" hidden>📲 홈 화면에 추가</button><button class="primary" data-close="helpModal">확인</button></div>
