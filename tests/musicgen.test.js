@@ -1,0 +1,21 @@
+/* node tests/musicgen.test.js */
+const assert = require('assert');
+globalThis.window = globalThis; globalThis.location = { protocol: 'file:' };
+globalThis.localStorage = { getItem: () => null, setItem: () => {} };
+require('../js/state.js'); require('../js/musicgen.js');
+const M = globalThis.RV.musicgen;
+const secs = M._internals.parseLyricSections('[verse]\n파란 하늘\n우리 웃음\n\n[chorus]\n함께라서\n\n다음 줄만\n또 한 줄');
+assert.strictEqual(secs.length, 3);
+assert.strictEqual(secs[0].name, 'verse'); assert.deepStrictEqual(secs[0].lines, ['파란 하늘', '우리 웃음']);
+assert.strictEqual(secs[1].name, 'chorus'); assert.strictEqual(secs[2].name, '');
+assert.strictEqual(M._internals.sectionName(secs[0], 0), 'Verse');
+assert.strictEqual(M._internals.sectionName(secs[1], 1), 'Chorus');
+assert.strictEqual(M._internals.sectionName(secs[2], 2), 'Verse 2');
+assert.strictEqual(M._internals.sectionName({ name: '후렴' }, 0), 'Chorus');
+assert.strictEqual(M._internals.sectionName({ name: 'Verse 2' }, 5), 'Verse 2');
+assert.deepStrictEqual(M._internals.parseLyricSections('')[0].lines, []);
+const pr = M.buildPrompt({ style: '잔잔한 피아노', vocal: 'female', lyrics: 'x' });
+assert.ok(pr.startsWith('잔잔한 피아노, female vocals'));
+assert.ok(M.buildPrompt({ style: 's', vocal: 'none' }).includes('instrumental'));
+assert.ok(M.providerIds().join() === 'mureka,elevenlabs,minimax,demo', M.providerIds().join());
+console.log('musicgen tests passed');

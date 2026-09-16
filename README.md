@@ -23,7 +23,7 @@
 | 단계 | 할 일 |
 |---|---|
 | 1 | **사진·동영상 추가** 또는 화면에 끌어다 놓기 (JPG/PNG/WEBP, MP4/WEBM/MOV, EXIF 회전 자동) |
-| 2 | **배경음악** 넣기 (MP3/M4A/WAV/OGG, 여러 곡 가능) |
+| 2 | **배경음악** 넣기 (MP3/M4A/WAV/OGG, 여러 곡 가능) 또는 **✨ AI 작곡**으로 가사·분위기를 적어 새 곡 생성 (Mureka / ElevenLabs / MiniMax API 키) |
 | 3 | 장당 재생시간 입력, 또는 *음악 재생시간에 균등하게 맞춤* / *비트에 맞춰 자동 전환* |
 | 4 | 오프닝·엔딩 제목 확인 |
 | 꾸미기 | 자막 · 디자인(배경 20종, 액자 10종) · 효과(전환 12종, 시네마틱 7종) · 동영상 구간 자르기/소리 조절 |
@@ -38,6 +38,18 @@
 - 미리보기와 결과물이 같은 렌더러를 쓰므로 화면에서 본 그대로 저장됩니다.
 - 모바일: 900px 이하에서 세로 레이아웃(미리보기 → 타임라인 → 작업 패널), `navigator.share`로 갤러리·카톡 저장, `manifest.json` + `sw.js`(네트워크 우선, 오프라인 폴백)로 PWA 설치.
 - 동영상 클립: `<video>` 요소를 내보내기 전용 복제본으로 실시간 재생하며 프레임을 캡처(`Renderer.prepare` export 모드). 클립 소리는 `decodeAudioData`로 디코딩해 오프라인 믹스에 합치고, 재생 중 배경음악을 자동으로 낮춥니다(더킹).
+
+## AI 작곡 서버 키 설정 (운영자용)
+`api/music.js`(Vercel 서버리스 함수)가 작곡 서비스 호출을 대신 해 줍니다. Vercel 프로젝트 → Settings → Environment Variables 에 아래 키를 등록하고 재배포하면
+사용자가 키를 입력하지 않아도 그 서비스를 쓸 수 있습니다(요금은 키 소유자에게 청구).
+
+| 환경 변수 | 서비스 |
+|---|---|
+| `MUREKA_API_KEY` | Mureka (platform.mureka.ai) |
+| `ELEVENLABS_API_KEY` | ElevenLabs Eleven Music |
+| `MINIMAX_API_KEY` | MiniMax Music (2026-08 이전 가입 계정) |
+
+키를 등록하지 않으면 사용자가 자기 키를 입력해 쓰며, 키는 사용자 브라우저에만 저장됩니다. 함수 최대 실행 시간은 `vercel.json`에서 300초로 설정했습니다.
 
 ## 사용설명서 다시 만들기
 스크린샷은 `docs/manual/img/`, 본문은 `docs/manual/content.js` 에 있습니다.

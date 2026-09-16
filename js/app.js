@@ -739,6 +739,79 @@
     } finally { exportAbort = null; }
   }
 
+  /* ---------------- AI music generation ---------------- */
+  let mgAbort = null, mgResult = null, mgUrl = null;
+  const SAMPLE_LYRICS = '[verse]\n파란 하늘 아래 우리 웃음이 번져\n손을 꼭 잡고 걷던 그 길 위에서\n작은 순간들이 모여 하루가 되고\n그 하루가 모여 우리가 되었지\n\n[chorus]\n함께라서 더 빛나는 시간\n사진 속에 남은 우리의 노래\n언제라도 꺼내 볼 수 있게\n오늘을 여기 담아둘게\n\n[verse]\n바람에 실려 온 웃음소리처럼\n따뜻한 기억이 마음에 남아\n\n[chorus]\n함께라서 더 빛나는 시간\n사진 속에 남은 우리의 노래';
+  function mgShow(view) {
+    $('#mgForm').hidden = view !== 'form'; $('#mgProgress').hidden = view !== 'progress'; $('#mgResult').hidden = view !== 'result';
+    $('#mgStart').hidden = view !== 'form'; $('#mgAdd').hidden = view !== 'result'; $('#mgRetry').hidden = view !== 'result'; $('#mgDownload').hidden = view !== 'result';
+    $('#mgCancel').textContent = view === 'progress' ? '중단' : (view === 'result' ? '닫기' : '취소');
+  }
+  async function mgSyncProvider() {
+    const id = $('#mgProvider').value, prov = RV.musicgen.providers[id]; if (!prov) return;
+    const info = await RV.musicgen.probeServer();
+    const serverKey = !!(info.ok && info.providers && info.providers[id]);
+    $('#mgProviderNote').textContent = prov.note || '';
+    $('#mgKeyRow').hidden = !!prov.noKey || serverKey;
+    $('#mgHint').textContent = prov.noKey ? '연습용 멜로디를 만듭니다. 실제 작곡은 위에서 서비스를 고르세요.'
+      : serverKey ? '이 사이트에 등록된 작곡 서비스 키를 사용합니다. 별도 키가 필요 없습니다.'
+      : '키는 이 PC의 브라우저 안에만 저장되며 작곡 요청에만 사용됩니다. 곡 하나에 보통 30초~2분이 걸리고, 서비스 요금이 발생할 수 있습니다.';
+    $('#mgKey').value = RV.musicgen.getKey(id) || '';
+    $('#mgKeyLink').href = prov.keyUrl || '#'; $('#mgKeyLink').hidden = !prov.keyUrl;
+  }
+  async function openMusicGen() {
+    stopPlayback(false);
+    const sel = $('#mgProvider');
+    if (!sel.options.length) {
+      RV.musicgen.providerIds().forEach((id) => { const o = document.createElement('option'); o.value = id; o.textContent = RV.musicgen.providers[id].label; sel.appendChild(o); });
+      sel.value = localStorage.getItem('rv.musicgen.provider') || 'mureka';
+      const chips = $('#mgChips');
+      RV.musicgen.STYLE_CHIPS.forEach((c) => { const b = document.createElement('button'); b.textContent = c; b.onclick = () => { const ta = $('#mgStyle'); const cur = ta.value.trim(); if (cur.includes(c)) { ta.value = cur.replace(c, '').replace(/,\s*,/g, ',').replace(/^[,\s]+|[,\s]+$/g, ''); b.classList.remove('on'); } else { ta.value = cur ? cur + ', ' + c : c; b.classList.add('on'); } }; chips.appendChild(b); });
+    }
+    mgShow('form'); $('#mgStatus').textContent = '작곡 중…';
+    if ($('#mgLength').value === 'fit' && !S.tl.total) $('#mgLength').value = '120';
+    await mgSyncProvider();
+    openModal('musicGenModal');
+    $('#mgStyle').focus();
+  }
+  async function startMusicGen() {
+    const provider = $('#mgProvider').value, style = $('#mgStyle').value.trim(), lyrics = $('#mgLyrics').value.trim(), vocal = $('#mgVocal').value;
+    if (!style && !lyrics) { toast('분위기·스타일이나 가사를 적어 주세요.', true); $('#mgStyle').focus(); return; }
+    let lengthSec = $('#mgLength').value === 'fit' ? Math.round(S.tl.total) : +$('#mgLength').value;
+    lengthSec = RV.clamp(lengthSec || 120, 10, 300);
+    const key = $('#mgKey').value.trim();
+    RV.musicgen.setKey(provider, key, $('#mgKeySave').checked);
+    localStorage.setItem('rv.musicgen.provider', provider);
+    mgAbort = new AbortController(); mgShow('progress');
+    const t0 = performance.now();
+    const tick = setInterval(() => { const s = Math.round((performance.now() - t0) / 1000); const base = $('#mgStatus').dataset.base || '작곡 중…'; $('#mgStatus').textContent = base + ' (' + s + '초 경과)'; }, 1000);
+    try {
+      const res = await RV.musicgen.generate({ provider, style, lyrics, vocal, lengthSec, key, signal: mgAbort.signal, onStatus: (m) => { $('#mgStatus').dataset.base = m; $('#mgStatus').textContent = m; } });
+      mgResult = res; if (mgUrl) URL.revokeObjectURL(mgUrl); mgUrl = URL.createObjectURL(res.blob);
+      $('#mgAudio').src = mgUrl;
+      const title = (style ? style.split(/[,，·]/)[0].trim().slice(0, 24) : '새 곡') + (lyrics && vocal !== 'none' ? '' : ' (연주곡)');
+      $('#mgTitle').value = 'AI 작곡 - ' + title;
+      $('#mgResultInfo').textContent = RV.musicgen.providers[provider].label + ' · ' + res.meta.seconds + '초 만에 완성 · ' + (res.blob.size / 1048576).toFixed(1) + ' MB. 들어보고 마음에 들면 배경음악으로 넣으세요.' + (res.meta.madeLyrics ? '\n\nAI가 지은 가사:\n' + res.meta.madeLyrics : '');
+      $('#mgResultInfo').style.whiteSpace = 'pre-wrap';
+      const dl = $('#mgDownload'); dl.href = mgUrl; dl.download = $('#mgTitle').value + '.' + res.ext;
+      mgShow('result'); $('#mgAudio').play().catch(() => {});
+    } catch (e) {
+      console.error(e); mgShow('form');
+      if (e.name === 'AbortError') toast('작곡을 중단했습니다.'); else toast('작곡 실패: ' + (e.message || e), true);
+    } finally { clearInterval(tick); mgAbort = null; }
+  }
+  async function addGeneratedMusic() {
+    if (!mgResult) return;
+    const name = ($('#mgTitle').value.trim() || 'AI 작곡') + '.' + mgResult.ext;
+    $('#mgAudio').pause();
+    const file = new File([mgResult.blob], name, { type: mgResult.mime });
+    closeModal('musicGenModal');
+    await addMusic([file]);
+    const tr = S.project.music.tracks[S.project.music.tracks.length - 1];
+    if (tr && tr.name === name) { tr.generated = mgResult.meta; scheduleSave(); }
+    if (!S.project.fitToMusic && !S.project.beatSync && S.project.slides.length) toast('팁: 3번의 "음악 재생시간에 균등하게 맞춤"을 켜면 새 곡 길이에 맞춰집니다.');
+  }
+
   /* ---------------- project file ---------------- */
   async function saveProjectFile() {
     toast('프로젝트 파일 만드는 중…');
@@ -865,6 +938,16 @@
     on('#exShare', 'click', async () => { if (!shareFile) return; try { await navigator.share({ files: [shareFile], title: shareFile.name }); } catch (e) { if (e.name !== 'AbortError') toast('공유할 수 없습니다: ' + e.message, true); } });
     on('#btnMoveL', 'click', () => moveSlide(-1)); on('#btnMoveR', 'click', () => moveSlide(1));
     on('#btnStageOpts', 'click', (e) => { const onNow = document.body.classList.toggle('show-opts'); e.currentTarget.classList.toggle('on', onNow); sizePreview(); drawFrame(); });
+
+    /* AI music */
+    on('#btnGenMusic', 'click', openMusicGen); on('#btnGenMusic2', 'click', openMusicGen);
+    on('#mgStart', 'click', startMusicGen);
+    on('#mgAdd', 'click', addGeneratedMusic);
+    on('#mgRetry', 'click', () => { $('#mgAudio').pause(); mgShow('form'); });
+    on('#mgCancel', 'click', () => { if (mgAbort) { mgAbort.abort(); return; } $('#mgAudio').pause(); closeModal('musicGenModal'); });
+    on('#mgProvider', 'change', mgSyncProvider);
+    on('#mgLyrics', 'input', (e) => { $('#mgLyricsCount').textContent = e.target.value.length + '자'; });
+    on('#mgLyricsHelp', 'click', () => { $('#mgLyrics').value = SAMPLE_LYRICS; $('#mgLyricsCount').textContent = SAMPLE_LYRICS.length + '자'; if (!$('#mgStyle').value.trim()) $('#mgStyle').value = '따뜻한 어쿠스틱 기타와 피아노, 잔잔하고 감성적인 발라드'; });
 
     /* PWA install prompt */
     let installEvt = null;

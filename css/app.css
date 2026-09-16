@@ -273,3 +273,21 @@ button .ico { display: none; }
   .tabs button { padding: 9px 1px; font-size: 12px; }
   .tile-grid { grid-template-columns: repeat(4, 1fr); }
 }
+
+/* AI music generation */
+button.gen { color: #ffd28a; border-color: #6b4a1f; background: #2a2116; }
+button.gen:hover { background: #3a2c1a; border-color: #a8731f; }
+.mg-sub { font-size: 12px; font-weight: 400; margin-left: 10px; }
+.mg-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.mg-col textarea { width: 100%; resize: vertical; }
+.mg-label { display: block; font-weight: 700; margin: 4px 0 6px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 4px; }
+.chips button { padding: 4px 10px; font-size: 12px; border-radius: 14px; }
+.chips button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.mg-provider { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--line); }
+#mgKey { font-family: Consolas, monospace; letter-spacing: 1px; }
+.mg-wait { display: grid; place-items: center; gap: 14px; padding: 28px 0; text-align: center; }
+.spinner { width: 42px; height: 42px; border-radius: 50%; border: 4px solid var(--line2); border-top-color: var(--accent); animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+#mgAudio { width: 100%; margin: 10px 0; }
+@media (max-width: 900px) { .mg-grid { grid-template-columns: 1fr; } }
