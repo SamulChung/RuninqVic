@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RuninqVic - 사진으로 동영상 만들기</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23ff6a1f'/%3E%3Cpath d='M24 18l22 14-22 14z' fill='%23fff'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand"><span class="logo">▶</span><span class="name">RuninqVic</span><span class="ver">v1.0</span></div>
+  <input id="projName" class="proj-name" title="프로젝트 이름" spellcheck="false">
+  <div class="top-actions">
+    <button id="btnNew" title="새 프로젝트 (Ctrl+N)">새로 만들기</button>
+    <button id="btnOpen" title="프로젝트 파일 열기 (Ctrl+O)">열기</button>
+    <button id="btnSave" title="프로젝트 파일로 저장 (Ctrl+S)">저장</button>
+    <button id="btnHelp" title="도움말 (F1)">도움말</button>
+    <button id="btnExport" class="primary" title="동영상 만들기 (Ctrl+E)">🎬 동영상 만들기</button>
+  </div>
+</header>
+
+<main class="layout">
+  <section class="stage">
+    <div class="preview-wrap" id="previewWrap">
+      <canvas id="preview"></canvas>
+      <div class="welcome" id="welcome">
+        <div class="w-logo">▶</div>
+        <h1>RuninqVic</h1>
+        <p>사진과 음악을 넣으면 멋진 영상이 됩니다.<br>사진을 이 화면에 끌어다 놓거나 오른쪽 <b>사진추가</b>를 눌러 시작해보세요.</p>
+      </div>
+      <div class="drop-overlay" id="dropOverlay">여기에 놓으면 추가됩니다</div>
+    </div>
+    <div class="controls">
+      <div class="tc"><span id="tcCur">00:00.0</span><span class="sep">/</span><span id="tcTotal">00:00.0</span></div>
+      <input type="range" id="scrub" min="0" max="1000" value="0" step="1">
+      <div class="ctl-btns">
+        <button id="btnPlay" class="icon" title="재생/일시정지 (Space)">▶</button>
+        <button id="btnStop" class="icon" title="정지">■</button>
+        <span class="vsep"></span>
+        <button id="btnRotL" class="icon" title="선택한 사진 왼쪽으로 90° 회전">↺</button>
+        <button id="btnRotR" class="icon" title="선택한 사진 오른쪽으로 90° 회전">↻</button>
+      </div>
+    </div>
+    <div class="stage-opts">
+      <label>화면비율 <select id="aspect"></select></label>
+      <label>전체사진위치 <select id="fit"><option value="fit">맞춤</option><option value="fill">채움</option><option value="original">원본 크기</option></select></label>
+      <label class="chk"><input type="checkbox" id="kenBurns"> 이동과 확대축소</label>
+      <label class="chk"><input type="checkbox" id="blurFill"> 여백에 사진넣기</label>
+    </div>
+  </section>
+
+  <aside class="panel">
+    <nav class="tabs">
+      <button data-tab="quick" class="active">간편만들기</button>
+      <button data-tab="caption">자막</button>
+      <button data-tab="design">디자인</button>
+      <button data-tab="fx">효과</button>
+      <button data-tab="music">음악</button>
+    </nav>
+    <div class="tab-pages">
+
+      <div class="tab-page active" data-page="quick">
+        <div class="step">
+          <div class="step-h"><span class="num">1</span>사진을 추가해보세요.<button id="btnAddPhotos" class="step-btn">📷 사진추가</button></div>
+          <div class="hint">폴더에서 여러 장을 끌어다 놓아도 됩니다. JPG · PNG · WEBP · HEIC(브라우저 지원 시)</div>
+        </div>
+        <div class="step">
+          <div class="step-h"><span class="num">2</span>배경음악을 골라보세요. <span class="muted" id="musicTotal">(00:00)</span>
+            <span class="step-btns"><button id="btnAddMusic" class="mini" title="음악 추가">＋</button><button id="btnRemoveMusic" class="mini" title="선택한 음악 제거">－</button></span></div>
+          <ul class="music-list" id="musicList"><li class="empty">여기에 음악을 넣어보세요. (MP3 · M4A · WAV · OGG)</li></ul>
+        </div>
+        <div class="step">
+          <div class="step-h"><span class="num">3</span>사진 1장당 재생시간을 설정해보세요.</div>
+          <div class="row">
+            <input type="number" id="defaultDuration" min="0.5" max="60" step="0.5" value="3"> 초
+            <label class="chk"><input type="checkbox" id="fitToMusic"> 음악 재생시간에 균등하게 맞춤</label>
+          </div>
+          <div class="row">
+            <label class="chk"><input type="checkbox" id="beatSync"> 음악 비트에 맞춰 자동으로 장면 전환 <span class="badge">NEW</span></label>
+          </div>
+          <div class="hint" id="durationInfo">사진과 음악을 넣어 멋진 영상을 만들어보세요.</div>
+        </div>
+        <div class="step">
+          <div class="step-h"><span class="num">4</span>오프닝과 엔딩을 확인해보세요.</div>
+          <div class="row title-row">
+            <label class="chk"><input type="checkbox" id="openingOn"> 오프닝</label>
+            <input type="text" id="openingTitle" placeholder="제목 (예: 2026.09.16)">
+            <input type="text" id="openingSub" placeholder="부제 (선택)">
+          </div>
+          <div class="row title-row">
+            <label class="chk"><input type="checkbox" id="endingOn"> 엔딩</label>
+            <input type="text" id="endingTitle" placeholder="제목 (예: The End)">
+            <input type="text" id="endingSub" placeholder="부제 (선택)">
+          </div>
+          <div class="row">
+            <label>스타일 <select id="titleStyle"></select></label>
+            <label>길이 <input type="number" id="titleDuration" min="1" max="15" step="0.5" value="3"> 초</label>
+          </div>
+        </div>
+        <div class="step cta">
+          <button id="btnGoDetail" class="ghost">✨ 자막 · 디자인 · 효과로 더 꾸미기 ›</button>
+        </div>
+      </div>
+
+      <div class="tab-page" data-page="caption">
+        <p class="panel-title">타임라인에서 화면을 선택하고 자막을 써보세요.</p>
+        <div class="row">
+          <select id="capFont" title="글꼴"></select>
+          <select id="capSize" title="크기"></select>
+          <input type="color" id="capColor" value="#ffffff" title="글자색">
+        </div>
+        <div class="row toggles">
+          <button id="capBold" class="tog" title="굵게"><b>가</b></button>
+          <button id="capItalic" class="tog" title="기울임"><i>가</i></button>
+          <button id="capShadow" class="tog" title="그림자"><span class="sh">가</span></button>
+          <button id="capOutline" class="tog" title="외곽선"><span class="ol">가</span></button>
+          <button id="capBox" class="tog" title="배경 상자"><span class="bx">가</span></button>
+        </div>
+        <textarea id="capText" placeholder="이 화면에 넣을 자막을 입력하세요. 줄바꿈도 됩니다." rows="6"></textarea>
+        <div class="two">
+          <div>
+            <div class="sub-h">위치</div>
+            <div class="pos-grid" id="posGrid"></div>
+          </div>
+          <div>
+            <div class="sub-h">효과</div>
+            <div class="fx-list" id="capEffects"></div>
+          </div>
+        </div>
+        <div class="row">
+          <label>이 화면 재생시간 <input type="number" id="slideDuration" min="0.5" max="120" step="0.5" placeholder="기본"> 초</label>
+          <button id="slideDurationReset" class="mini" title="기본값으로">↺</button>
+        </div>
+        <div class="row nav-row">
+          <button id="capApplyAll" class="ghost" title="글꼴·크기·색·위치·효과를 모든 화면에 적용">스타일 전체적용</button>
+          <span class="grow"></span>
+          <button id="prevSlide" class="ghost">‹ 이전화면</button>
+          <button id="nextSlide" class="ghost">다음화면 ›</button>
+        </div>
+      </div>
+
+      <div class="tab-page" data-page="design">
+        <p class="panel-title">타임라인에서 화면을 선택하고 디자인을 골라보세요.</p>
+        <div class="sec-h">배경 <span class="grow"></span><label class="inline">다른색 <input type="color" id="bgColor" value="#000000"></label><button id="bgApplyAll" class="mini-text">전체적용</button></div>
+        <div class="tile-grid" id="bgGrid"></div>
+        <div class="row small"><label>블러 강도 <input type="range" id="blurAmount" min="0" max="80" step="5"></label><label>어둡게 <input type="range" id="blurDarken" min="0" max="0.8" step="0.05"></label></div>
+        <div class="sec-h">액자 <span class="grow"></span><button id="frameApplyAll" class="mini-text">전체적용</button></div>
+        <div class="tile-grid" id="frameGrid"></div>
+        <div class="row nav-row"><span class="grow"></span><button id="prevSlide2" class="ghost">‹ 이전화면</button><button id="nextSlide2" class="ghost">다음화면 ›</button></div>
+      </div>
+
+      <div class="tab-page" data-page="fx">
+        <p class="panel-title">타임라인에서 화면을 선택하고 효과를 골라보세요.</p>
+        <div class="sec-h">⏭ 전환 <span class="grow"></span><button id="trApplyAll" class="mini-text">전체적용</button></div>
+        <div class="tile-grid" id="trGrid"></div>
+        <div class="row small"><label>전환 길이 <input type="range" id="trDuration" min="0.2" max="2.5" step="0.1"> <span id="trDurationVal">0.8초</span></label></div>
+        <div class="row small"><label>이동과 확대축소 강도 <input type="range" id="kbIntensity" min="0.3" max="2" step="0.1"></label></div>
+        <div class="sec-h">★ 시네마틱 <span class="grow"></span><button id="cineApplyAll" class="mini-text">전체적용</button></div>
+        <div class="tile-grid" id="cineGrid"></div>
+        <div class="row nav-row"><span class="grow"></span><button id="prevSlide3" class="ghost">‹ 이전화면</button><button id="nextSlide3" class="ghost">다음화면 ›</button></div>
+      </div>
+
+      <div class="tab-page" data-page="music">
+        <p class="panel-title">배경음악을 세밀하게 조절해보세요.</p>
+        <div class="row"><button id="btnAddMusic2" class="ghost">＋ 음악 추가</button><span class="grow"></span><span class="muted" id="musicTotal2">총 00:00</span></div>
+        <ul class="music-list detail" id="musicList2"></ul>
+        <div class="row"><label>전체 볼륨 <input type="range" id="musicVolume" min="0" max="1.5" step="0.05"> <span id="musicVolumeVal">100%</span></label></div>
+        <div class="row"><label>페이드 인 <input type="number" id="fadeIn" min="0" max="15" step="0.5"> 초</label><label>페이드 아웃 <input type="number" id="fadeOut" min="0" max="15" step="0.5"> 초</label></div>
+        <div class="row"><label>시작 지점 자르기 <input type="number" id="trimStart" min="0" step="1"> 초</label><label class="chk"><input type="checkbox" id="musicLoop"> 영상이 더 길면 반복</label></div>
+        <div class="hint" id="beatInfo">음악을 넣으면 비트를 자동으로 분석합니다.</div>
+      </div>
+    </div>
+  </aside>
+</main>
+
+<footer class="timeline">
+  <div class="tl-head">
+    <span class="tl-title">타임라인 (<span id="slideCount">0</span>장) <span class="muted">· 영상 길이 <span id="tlTotal">00:00</span></span></span>
+    <div class="tl-actions">
+      <button id="btnAddPhotos2">📷 사진추가</button>
+      <button id="btnAddText">➕ 새화면추가</button>
+      <select id="sortSel" title="정렬"><option value="">정렬…</option><option value="name">이름순</option><option value="date">촬영·수정일순</option><option value="reverse">순서 뒤집기</option><option value="shuffle">무작위 섞기</option></select>
+      <span class="vsep"></span>
+      <button id="btnDelete" title="선택한 화면 삭제 (Delete)">－ 삭제</button>
+      <button id="btnClear" class="danger">✕ 전체삭제</button>
+    </div>
+  </div>
+  <div class="tl-strip" id="tlStrip"><div class="tl-empty" id="tlEmpty">여기에 사진을 넣어보세요.</div></div>
+</footer>
+
+<!-- Export modal -->
+<div class="modal" id="exportModal">
+  <div class="modal-box">
+    <div class="modal-h">동영상 만들기<button class="close" data-close="exportModal">✕</button></div>
+    <div class="modal-body" id="exportForm">
+      <div class="row"><label class="wide">파일 이름 <input type="text" id="exName"></label></div>
+      <div class="row"><label>용도 <select id="exPreset"><option value="pc">PC · TV용 (1080p)</option><option value="youtube">유튜브 (1080p 고화질)</option><option value="sns">스마트폰 · SNS (720p)</option><option value="4k">4K UHD</option><option value="custom">사용자 설정</option></select></label></div>
+      <div class="row"><label>크기 <select id="exRes"></select></label><label>프레임 <select id="exFps"><option value="24">24 fps</option><option value="30" selected>30 fps</option><option value="60">60 fps</option></select></label></div>
+      <div class="row"><label>품질 <select id="exQuality"><option value="low">하 (작은 용량)</option><option value="medium">중</option><option value="high" selected>상 (추천)</option></select></label><label>비트레이트 <input type="number" id="exBitrate" min="1" max="120" step="1"> Mbps</label></div>
+      <div class="ex-info" id="exInfo"></div>
+    </div>
+    <div class="modal-body" id="exportProgress" hidden>
+      <canvas id="exPreview" width="320" height="180"></canvas>
+      <div class="bar"><div id="exBar"></div></div>
+      <div class="ex-status" id="exStatus">준비 중…</div>
+    </div>
+    <div class="modal-body" id="exportDone" hidden>
+      <div class="done-icon">✅</div>
+      <div class="ex-status" id="exDoneMsg"></div>
+      <a id="exDownload" class="btn primary" download hidden>파일 다운로드</a>
+    </div>
+    <div class="modal-f">
+      <button id="exCancel" class="ghost">취소</button>
+      <button id="exStart" class="primary">만들기</button>
+      <button id="exClose" class="primary" hidden>닫기</button>
+    </div>
+  </div>
+</div>
+
+<!-- Help modal -->
+<div class="modal" id="helpModal">
+  <div class="modal-box wide">
+    <div class="modal-h">RuninqVic 도움말<button class="close" data-close="helpModal">✕</button></div>
+    <div class="modal-body help">
+      <h3>1. 간편만들기</h3>
+      <ol>
+        <li><b>사진추가</b>로 사진을 넣습니다. 폴더에서 화면으로 끌어다 놓아도 됩니다.</li>
+        <li><b>배경음악</b>을 넣습니다. 여러 곡을 넣으면 순서대로 이어집니다.</li>
+        <li><b>재생시간</b>을 정합니다. <i>음악 재생시간에 균등하게 맞춤</i>을 켜면 음악 길이에 맞춰 사진 시간을 자동 배분하고, <i>비트에 맞춰</i>를 켜면 박자에 맞춰 장면이 바뀝니다.</li>
+        <li><b>오프닝·엔딩</b> 제목을 확인합니다.</li>
+      </ol>
+      <h3>2. 상세꾸미기</h3>
+      <p>타임라인에서 화면을 고른 뒤 <b>자막</b>, <b>디자인(배경·액자)</b>, <b>효과(전환·시네마틱)</b>를 넣습니다. <b>전체적용</b>을 누르면 모든 화면에 같은 설정이 적용됩니다.</p>
+      <h3>3. 동영상 만들기</h3>
+      <p>오른쪽 위 <b>동영상 만들기</b>를 누르고 크기·품질을 고르면 MP4(H.264/AAC) 파일이 만들어집니다. 1080p · 4K · 60fps · 세로(9:16) 쇼츠도 지원합니다.</p>
+      <h3>단축키</h3>
+      <table>
+        <tr><td>Space</td><td>재생 / 일시정지</td><td>← →</td><td>이전 / 다음 화면</td></tr>
+        <tr><td>Delete</td><td>선택한 화면 삭제</td><td>Ctrl+S / Ctrl+O</td><td>프로젝트 저장 / 열기</td></tr>
+        <tr><td>Ctrl+E</td><td>동영상 만들기</td><td>Home / End</td><td>처음 / 끝으로</td></tr>
+      </table>
+      <p class="muted">작업 내용은 이 PC의 브라우저 안에 자동 저장되며, 사진·음악은 외부로 전송되지 않습니다. 다른 PC로 옮기려면 <b>저장</b>으로 .rvproj 파일을 만드세요.</p>
+    </div>
+    <div class="modal-f"><button class="primary" data-close="helpModal">확인</button></div>
+  </div>
+</div>
+
+<input type="file" id="filePhotos" multiple accept="image/*" hidden>
+<input type="file" id="fileMusic" multiple accept="audio/*,.mp3,.m4a,.wav,.ogg,.aac,.flac" hidden>
+<input type="file" id="fileProj" accept=".rvproj,.json" hidden>
+<div id="toast"></div>
+
+<script src="lib/mp4-muxer.min.js"></script>
+<script src="lib/webm-muxer.min.js"></script>
+<script src="js/state.js"></script>
+<script src="js/timeline.js"></script>
+<script src="js/designs.js"></script>
+<script src="js/render.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/exporter.js"></script>
+<script src="js/store.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

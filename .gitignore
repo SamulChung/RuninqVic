@@ -1,0 +1,6 @@
+tests/out/
+.playwright-mcp/
+.vercel/
+node_modules/
+*.mp4
+*.webm
