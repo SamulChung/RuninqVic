@@ -78,9 +78,9 @@
         </div>
         <div class="step">
           <div class="step-h"><span class="num">2</span>배경음악을 골라보세요. <span class="muted" id="musicTotal">(00:00)</span>
-            <span class="step-btns"><button id="btnGenMusic" class="mini gen" title="가사와 스타일로 AI 음악 만들기">✨ AI 작곡</button><button id="btnAddMusic" class="mini" title="음악 파일 추가">＋</button><button id="btnRemoveMusic" class="mini" title="선택한 음악 제거">－</button></span></div>
+            <span class="step-btns"><button id="btnAddMusic" class="mini" title="음악 파일 추가">＋ 곡 추가</button><button id="btnRemoveMusic" class="mini" title="선택한 음악 제거">－</button><button id="btnGenMusic" class="mini gen" title="가사와 스타일로 AI 음악 만들기">AI</button></span></div>
           <ul class="music-list" id="musicList"><li class="empty">여기에 음악을 넣어보세요. (MP3 · M4A · WAV · OGG)</li></ul>
-          <div class="hint">음악 파일이 없으면 <b>✨ AI 작곡</b>으로 가사와 분위기를 적어 새 곡을 만들 수 있습니다.</div>
+          <div class="hint">음악 파일이 없으면 <b>AI</b> 버튼으로 가사와 분위기를 적어 새 곡을 만들 수 있습니다.</div>
         </div>
         <div class="step">
           <div class="step-h"><span class="num">3</span>사진 1장당 재생시간을 설정해보세요.</div>
@@ -204,7 +204,7 @@
 
       <div class="tab-page" data-page="music">
         <p class="panel-title">배경음악을 세밀하게 조절해보세요.</p>
-        <div class="row"><button id="btnAddMusic2" class="ghost">＋ 음악 파일 추가</button><button id="btnGenMusic2" class="ghost gen">✨ AI 작곡</button><span class="grow"></span><span class="muted" id="musicTotal2">총 00:00</span></div>
+        <div class="row"><button id="btnAddMusic2" class="ghost">＋ 곡 추가</button><button id="btnGenMusic2" class="ghost gen">AI</button><span class="grow"></span><span class="muted" id="musicTotal2">총 00:00</span></div>
         <ul class="music-list detail" id="musicList2"></ul>
         <div class="row"><label>전체 볼륨 <input type="range" id="musicVolume" min="0" max="1.5" step="0.05"> <span id="musicVolumeVal">100%</span></label></div>
         <div class="row"><label>페이드 인 <input type="number" id="fadeIn" min="0" max="15" step="0.5"> 초</label><label>페이드 아웃 <input type="number" id="fadeOut" min="0" max="15" step="0.5"> 초</label></div>
@@ -324,7 +324,7 @@
       <h3>1. 간편만들기</h3>
       <ol>
         <li><b>사진·동영상 추가</b>로 사진이나 짧은 동영상을 넣습니다. 폴더에서 화면으로 끌어다 놓아도 됩니다. 동영상은 자막 탭에서 시작·끝 구간을 잘라 길이를 정합니다.</li>
-        <li><b>배경음악</b>을 넣습니다. 여러 곡을 넣으면 순서대로 이어집니다. 음악 파일이 없으면 <b>✨ AI 작곡</b>에 가사와 분위기를 적어 새 곡을 만들 수 있습니다(Mureka·ElevenLabs 등 작곡 서비스의 API 키 필요).</li>
+        <li><b>배경음악</b>을 넣습니다. 여러 곡을 넣으면 순서대로 이어집니다. 음악 파일이 없으면 <b>AI</b> 버튼에 가사와 분위기를 적어 새 곡을 만들 수 있습니다(Mureka·ElevenLabs 등 작곡 서비스의 API 키 필요).</li>
         <li><b>재생시간</b>을 정합니다. <i>음악 재생시간에 균등하게 맞춤</i>을 켜면 음악 길이에 맞춰 사진 시간을 자동 배분하고, <i>비트에 맞춰</i>를 켜면 박자에 맞춰 장면이 바뀝니다.</li>
         <li><b>오프닝·엔딩</b> 제목을 확인합니다.</li>
       </ol>
