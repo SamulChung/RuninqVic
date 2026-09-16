@@ -84,6 +84,7 @@ function buildDocx() {
   children.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [run(C.version, { size: 22, color: GRAY })] }));
   children.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [new ExternalHyperlink({ link: C.web, children: [run(C.web, { size: 22, color: '1A73E8', underline: {} })] })], spacing: { after: 80 } }));
   children.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [run('알씨 동영상 만들기를 대체하는 사진 슬라이드쇼 동영상 제작 프로그램', { size: 20, color: GRAY })], spacing: { after: 600 } }));
+  { const lb = fs.readFileSync(path.join(HERE, '..', '..', 'assets', 'tenai-logo.png')); const ls = pngSize(lb); const lw = 200; children.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 80 }, children: [new ExternalHyperlink({ link: C.makerUrl, children: [new ImageRun({ type: 'png', data: lb, transformation: { width: lw, height: Math.round(ls.h * lw / ls.w) } })] })] })); }
   children.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [run('제작  ', { size: 22, color: GRAY }), run(C.maker, { size: 26, bold: true })] }));
   children.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [new ExternalHyperlink({ link: C.makerUrl, children: [run('www.tenai.kr', { size: 22, color: '1A73E8', underline: {} })] })] }));
   /* TOC */
@@ -110,7 +111,7 @@ function buildDocx() {
     features: { updateFields: true },
     sections: [{
       properties: { page: { size: { width: 11906, height: 16838 }, margin: { top: 1300, bottom: 1200, left: 1273, right: 1273 } } },
-      headers: { default: new Header({ children: [new Paragraph({ alignment: AlignmentType.RIGHT, children: [run('RuninqVic 사용설명서 v1.2  ·  제작: 텐에이아이 www.tenai.kr', { size: 16, color: GRAY })], border: { bottom: { style: BorderStyle.SINGLE, size: 4, color: 'DDDDDD', space: 4 } } })] }) },
+      headers: { default: new Header({ children: [new Paragraph({ alignment: AlignmentType.RIGHT, children: [run('RuninqVic 사용설명서 v1.2  ·  제작: (주)텐에이아이 www.tenai.kr', { size: 16, color: GRAY })], border: { bottom: { style: BorderStyle.SINGLE, size: 4, color: 'DDDDDD', space: 4 } } })] }) },
       footers: { default: new Footer({ children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ children: [PageNumber.CURRENT], font: FONT, size: 16, color: GRAY })] })] }) },
       children,
     }],
@@ -147,7 +148,7 @@ function buildHtml() {
 header.top{display:flex;align-items:center;gap:12px;padding:10px 0 18px;border-bottom:1px solid var(--line);margin-bottom:24px}
 header.top .logo{width:34px;height:34px;border-radius:9px;background:var(--accent);color:#fff;display:grid;place-items:center;font-weight:700}
 header.top h1{font-size:22px;margin:0}header.top .sub{color:var(--muted);font-size:13px}
-header.top a.app{margin-left:auto;background:var(--accent);color:#fff;text-decoration:none;padding:8px 14px;border-radius:8px;font-weight:700;font-size:14px}
+header.top a.maker{margin-left:auto;display:flex;align-items:center;padding:4px 8px;border-radius:8px;background:#fff}header.top a.maker img{height:34px;display:block}header.top a.app{background:var(--accent);color:#fff;text-decoration:none;padding:8px 14px;border-radius:8px;font-weight:700;font-size:14px}
 nav.toc{background:var(--tip);border-left:4px solid var(--accent);padding:14px 18px;border-radius:8px;margin-bottom:28px}
 nav.toc ul{columns:2;margin:6px 0 0;padding-left:18px}nav.toc a{color:inherit;text-decoration:none}nav.toc a:hover{color:var(--accent)}
 section{margin-top:44px}h2{color:var(--accent);font-size:24px;border-bottom:2px solid var(--accent);padding-bottom:6px;margin:0 0 14px}
@@ -159,7 +160,7 @@ details{border:1px solid var(--line);border-radius:8px;padding:10px 14px;margin:
 a{color:#1a73e8}footer{margin-top:60px;color:var(--muted);font-size:13px;border-top:1px solid var(--line);padding-top:16px}
 @media print{header.top a.app,nav.toc{display:none}section{break-inside:auto}h2{break-after:avoid}figure{break-inside:avoid}}
 </style></head><body><div class="wrap">
-<header class="top"><div class="logo">▶</div><div><h1>RuninqVic 사용설명서</h1><div class="sub">${esc(C.subtitle)} · ${esc(C.version)} · 제작 <a href="${C.makerUrl}" target="_blank" rel="noopener">${esc(C.maker)}</a></div></div><a class="app" href="index.html">앱 열기 ›</a></header>
+<header class="top"><div class="logo">▶</div><div><h1>RuninqVic 사용설명서</h1><div class="sub">${esc(C.subtitle)} · ${esc(C.version)} · 제작 <a href="${C.makerUrl}" target="_blank" rel="noopener">${esc(C.maker)}</a></div></div><a class="maker" href="${C.makerUrl}" target="_blank" rel="noopener" title="(주)텐에이아이 홈페이지"><img src="assets/tenai-logo.png" alt="TenAI"></a><a class="app" href="index.html">앱 열기 ›</a></header>
 <nav class="toc"><b>목차</b><ul>${toc}</ul></nav>
 ${body}
 <footer>RuninqVic · 제작: <a href="${C.makerUrl}" target="_blank" rel="noopener">${esc(C.maker)} · www.tenai.kr</a> · 소스: <a href="${C.repo}" target="_blank" rel="noopener">${C.repo}</a> · Word 버전: <a href="docs/manual/RuninqVic_사용설명서.docx">RuninqVic_사용설명서.docx</a></footer>

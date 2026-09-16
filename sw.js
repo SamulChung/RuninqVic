@@ -1,12 +1,12 @@
 /* RuninqVic service worker: caches the app shell so it opens offline and installs to the home screen.
    Bump CACHE whenever files change (the app also checks for updates on every load). */
-const CACHE = 'runinqvic-v1.2.1';
+const CACHE = 'runinqvic-v1.2.2';
 const SHELL = [
   './', './index.html', './manual.html', './manifest.json',
   './css/app.css',
   './js/state.js', './js/timeline.js', './js/designs.js', './js/render.js', './js/audio.js', './js/exporter.js', './js/store.js', './js/app.js',
   './lib/mp4-muxer.min.js', './lib/webm-muxer.min.js',
-  './assets/icon-192.png', './assets/icon-512.png', './assets/icon-512-maskable.png', './assets/apple-touch-icon.png',
+  './assets/icon-192.png', './assets/icon-512.png', './assets/icon-512-maskable.png', './assets/apple-touch-icon.png', './assets/tenai-logo.png', './assets/tenai-logo-dark.png',
 ];
 
 self.addEventListener('install', (e) => {

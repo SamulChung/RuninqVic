@@ -5,11 +5,11 @@ module.exports = {
   version: '버전 1.2 · 2026년 9월 17일',
   web: 'https://runinqvic.vercel.app',
   repo: 'https://github.com/SamulChung/RuninqVic',
-  maker: '텐에이아이 (TenAI)', makerUrl: 'https://www.tenai.kr',
+  maker: '(주)텐에이아이', makerUrl: 'https://www.tenai.kr',
   sections: [
     { h: '1. 소개', body: [
       { h2: '1.1 RuninqVic이란' },
-      { p: 'RuninqVic(러닝빅)은 텐에이아이(TenAI, www.tenai.kr)가 만든 프로그램으로, 사진 여러 장과 배경음악만 넣으면 사진마다 재생시간을 자동으로 배분해 한 편의 MP4 동영상으로 만들어 주는 프로그램입니다. 서비스가 종료된 알씨 동영상 만들기의 쉬운 사용법을 그대로 이어받았고, 요즘 필요한 기능(세로 영상, 4K, 음악 비트 맞춤, 자동 저장)을 더했습니다.' },
+      { p: 'RuninqVic(러닝빅)은 (주)텐에이아이(www.tenai.kr)가 만든 프로그램으로, 사진 여러 장과 배경음악만 넣으면 사진마다 재생시간을 자동으로 배분해 한 편의 MP4 동영상으로 만들어 주는 프로그램입니다. 서비스가 종료된 알씨 동영상 만들기의 쉬운 사용법을 그대로 이어받았고, 요즘 필요한 기능(세로 영상, 4K, 음악 비트 맞춤, 자동 저장)을 더했습니다.' },
       { p: '설치가 필요 없습니다. 웹 주소(https://runinqvic.vercel.app)에 접속하거나, 내려받은 폴더의 RuninqVic.bat을 더블클릭하면 바로 실행됩니다. 사진과 음악은 사용자의 PC 안에서만 처리되며 어디에도 전송되지 않습니다.' },
       { h2: '1.2 알씨 동영상 만들기와 무엇이 다른가' },
       { table: { head: ['기능', '알씨 동영상 만들기', 'RuninqVic'], widths: [1800, 3300, 4260], rows: [
@@ -355,7 +355,7 @@ module.exports = {
         '동영상 인코딩: 브라우저 내장 WebCodecs(VideoEncoder H.264, AudioEncoder AAC), MP4 묶기: mp4-muxer(MIT), WebM 대체: webm-muxer(MIT).',
         '미리보기와 결과물이 같은 그리기 코드를 쓰기 때문에 화면에서 본 그대로 저장됩니다.',
         '소스 코드: https://github.com/SamulChung/RuninqVic',
-        '제작: 텐에이아이 (TenAI) · https://www.tenai.kr',
+        '제작: (주)텐에이아이 · https://www.tenai.kr',
       ] },
     ] },
   ],

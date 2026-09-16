@@ -37,12 +37,15 @@ input[type=checkbox] { accent-color: var(--accent); width: 15px; height: 15px; v
 .brand { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 17px; letter-spacing: .2px; }
 .brand .logo { width: 28px; height: 28px; border-radius: 8px; background: var(--accent); color: #fff; display: grid; place-items: center; font-size: 13px; }
 .brand .ver { font-size: 11px; color: var(--muted); font-weight: 500; }
-.brand .maker { font-size: 11px; color: var(--muted); font-weight: 500; text-decoration: none; margin-left: 4px; padding: 2px 7px; border: 1px solid var(--line2); border-radius: 10px; }
-.brand .maker:hover { color: var(--accent2); border-color: var(--accent2); }
+.brand .maker-logo { display: inline-flex; align-items: center; margin-left: 10px; padding: 3px 8px; border-radius: 7px; border: 1px solid transparent; }
+.brand .maker-logo img { height: 22px; display: block; }
+.brand .maker-logo:hover { background: var(--bg3); border-color: var(--line2); }
 .welcome .credit { margin-top: 18px; font-size: 12px; color: var(--muted); pointer-events: auto; }
 .welcome .credit a { color: var(--accent2); text-decoration: none; }
+.welcome .credit-logo { height: 40px; margin-bottom: 6px; }
 .credit-box { background: var(--bg); border: 1px solid var(--line2); border-radius: 8px; padding: 10px 12px; margin: 14px 0 8px; }
 .credit-box a { color: var(--accent2); }
+.credit-box img { height: 26px; vertical-align: middle; margin-right: 8px; }
 .proj-name { width: 240px; background: transparent; border: 1px solid transparent; border-radius: 7px; padding: 5px 8px; font-size: 14px; }
 .proj-name:hover, .proj-name:focus { border-color: var(--line2); background: var(--bg); }
 .top-actions { margin-left: auto; display: flex; gap: 6px; }
@@ -197,7 +200,9 @@ button .ico { display: none; }
   .stage-opts, .tl-head { flex-wrap: wrap; }
   .tl-actions { margin-left: 0; flex-wrap: wrap; }
   .tl-title { flex: 1 1 auto; }
-  .brand .name, .brand .maker { display: none; }
+  .brand .name { display: none; }
+  .brand .maker-logo { margin-left: 2px; padding: 2px 4px; }
+  .brand .maker-logo img { height: 18px; }
   .proj-name { flex: 1 1 60px; width: 60px; }
   .layout { display: contents; }
   .stage { order: 1; grid-template-rows: auto auto auto; }

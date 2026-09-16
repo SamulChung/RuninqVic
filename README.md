@@ -1,6 +1,8 @@
 # RuninqVic
 
-**제작: 텐에이아이 (TenAI) · https://www.tenai.kr**
+<a href="https://www.tenai.kr"><img src="assets/tenai-logo.png" alt="TenAI" height="60"></a>
+
+**제작: (주)텐에이아이 · https://www.tenai.kr**
 
 사진 여러 장(그리고 짧은 동영상 클립)과 배경음악만 넣으면 재생시간을 자동으로 배분해 **MP4 동영상**을 만들어 주는 프로그램입니다.
 서비스가 종료된 **알씨 동영상 만들기**의 워크플로(간편만들기 → 상세꾸미기 → 만들기)를 그대로 계승하고,
