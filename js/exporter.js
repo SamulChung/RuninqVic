@@ -54,13 +54,33 @@
    * opts: { width, height, fps, bitrate, fileHandle?, onProgress(frac, info), signal, assets, previewCanvas? }
    * returns { blob?, written?, ext, mime, video, audio }
    */
+  /* Export works on private <video> clones so it never fights the preview over seeks. */
+  async function cloneVideoAssets(assets) {
+    const images = new Map(); const clones = [];
+    for (const [id, a] of assets.images) {
+      if (!a.video || !a.url) { images.set(id, a); continue; }
+      const v = document.createElement('video'); v.muted = true; v.preload = 'auto'; v.playsInline = true; v.src = a.url;
+      await new Promise((res) => { v.onloadedmetadata = () => res(); v.onerror = () => res(); setTimeout(res, 15000); });
+      clones.push(v);
+      images.set(id, Object.assign({}, a, { bitmap: v, video: v }));
+    }
+    return { assets: { images, audio: assets.audio }, dispose: () => clones.forEach((v) => { try { v.pause(); v.removeAttribute('src'); v.load(); } catch (e) { /* ignore */ } }) };
+  }
+
   RV.exportVideo = async function (project, tl, opts) {
+    const { width: W, height: H, fps } = opts;
+    const cloned = await cloneVideoAssets(opts.assets);
+    try { return await exportWith(project, tl, Object.assign({}, opts, { assets: cloned.assets })); }
+    finally { cloned.dispose(); }
+  };
+
+  async function exportWith(project, tl, opts) {
     const { width: W, height: H, fps } = opts;
     const bitrate = opts.bitrate || RV.suggestBitrate(W, H, fps, project.export.quality);
     const v = await pickVideo(W, H, fps, bitrate);
     if (!v) throw new Error('이 브라우저에서는 비디오 인코딩을 지원하지 않습니다.');
     const a = await pickAudio(v.container);
-    const mixed = await RV.audio.buildMix(project, opts.assets, tl.total);
+    const mixed = await RV.audio.buildMix(project, opts.assets, tl.total, tl);
     const useAudio = !!(a && mixed);
     const isMp4 = v.container === 'mp4';
     const ext = isMp4 ? 'mp4' : 'webm', mime = isMp4 ? 'video/mp4' : 'video/webm';
@@ -111,6 +131,7 @@
       for (let i = 0; i < nFrames; i++) {
         checkAbort();
         const t = i / fps;
+        await renderer.prepare(project, tl, t, opts.assets, 'export');
         renderer.draw(project, tl, t, opts.assets);
         const frame = new VideoFrame(renderer.canvas, { timestamp: Math.round(i * 1e6 / fps), duration: Math.round(1e6 / fps) });
         venc.encode(frame, { keyFrame: i % gop === 0 });

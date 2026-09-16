@@ -48,7 +48,7 @@
     for (const s of project.slides) {
       if (!s.assetId || seen.has(s.assetId)) continue; seen.add(s.assetId);
       const rec = await RV.store.getAsset(s.assetId); if (!rec) continue;
-      out.assets.push({ id: s.assetId, kind: 'image', name: rec.name, type: rec.blob.type, data: await blobToDataURL(rec.blob) });
+      out.assets.push({ id: s.assetId, kind: rec.kind || (s.type === 'video' ? 'video' : 'image'), name: rec.name, type: rec.blob.type, data: await blobToDataURL(rec.blob) });
     }
     for (const t of project.music.tracks) {
       if (!t.assetId || seen.has(t.assetId)) continue; seen.add(t.assetId);

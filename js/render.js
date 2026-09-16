@@ -5,6 +5,33 @@
   function mkCanvas(w, h) {
     const c = document.createElement('canvas'); c.width = w; c.height = h; return c;
   }
+  function seekTo(video, t) {
+    return new Promise((res) => {
+      if (video.readyState >= 2 && Math.abs(video.currentTime - t) < 0.012) return res();
+      let done = false;
+      const fin = () => { if (done) return; done = true; video.removeEventListener('seeked', fin); clearTimeout(timer); res(); };
+      const timer = setTimeout(fin, 2000);
+      video.addEventListener('seeked', fin);
+      try { video.currentTime = t; } catch (e) { fin(); }
+    });
+  }
+  RV.seekVideo = seekTo;
+  /* export helper: make the playing video reach `target` (seconds); returns when a frame at >= target is presented */
+  async function reachTime(v, target) {
+    const TOL = 0.02, AHEAD = 0.35;
+    if (v.paused || v.currentTime > target + AHEAD || v.currentTime < target - 1.5) {
+      v.pause();
+      await seekTo(v, target);
+      if (v.currentTime >= target - TOL) { v.play().catch(() => {}); return; }
+      await v.play().catch(() => {});
+    }
+    const nextFrame = () => new Promise((r) => (v.requestVideoFrameCallback ? v.requestVideoFrameCallback(() => r()) : setTimeout(r, 8)));
+    const t0 = performance.now();
+    while (v.currentTime < target - TOL && !v.ended) {
+      await nextFrame();
+      if (performance.now() - t0 > 4000) { v.pause(); await seekTo(v, target); v.play().catch(() => {}); break; }
+    }
+  }
 
   class Renderer {
     constructor(w, h) {
@@ -22,6 +49,37 @@
       this.blurCache.clear();
     }
     invalidate() { this.blurCache.clear(); }
+
+    /* Bring video elements that are on screen at time t to the right position.
+       mode 'play'  : preview playback - keep videos playing in sync (resync on drift)
+       mode 'seek'  : paused preview - seek precisely and wait
+       mode 'export': frame-by-frame - play the clip in real time and wait until it reaches t
+                      (much faster than seeking every frame; seeks only when the clip starts or runs ahead) */
+    async prepare(project, tl, t, assets, mode) {
+      if (mode === true) mode = 'play'; else if (!mode) mode = 'seek';
+      const loc = RV.locate(tl, t);
+      const active = new Set(), jobs = [];
+      if (loc) {
+        for (const [item] of [[loc.a], [loc.b]]) {
+          if (!item || item.slide.type !== 'video') continue;
+          const a = assets.images.get(item.slide.assetId);
+          if (!a || !a.video) continue;
+          const v = a.video; active.add(v);
+          const local = (+item.slide.in || 0) + Math.max(0, t - item.start);
+          const target = Math.max(0, Math.min(local, (a.duration || v.duration || 0) - 0.04));
+          if (mode === 'play') {
+            if (v.paused || Math.abs(v.currentTime - target) > 0.25) { v.currentTime = target; jobs.push(v.play().catch(() => {})); }
+          } else if (mode === 'export') {
+            jobs.push(reachTime(v, target));
+          } else {
+            if (!v.paused) v.pause();
+            jobs.push(seekTo(v, target));
+          }
+        }
+      }
+      for (const a of assets.images.values()) if (a.video && !active.has(a.video) && !a.video.paused) a.video.pause();
+      await Promise.all(jobs);
+    }
 
     /* main entry */
     draw(project, tl, t, assets) {
@@ -76,7 +134,7 @@
         else scale = Math.min(rect.w / iw, rect.h / ih);
         const dw = iw * scale, dh = ih * scale;
         let z = 1, px = 0, py = 0;
-        if (project.kenBurns && s.kb) {
+        if (project.kenBurns && s.kb && s.type !== 'video') {
           const e = RV.easeInOut(u), k = project.kbIntensity == null ? 1 : project.kbIntensity;
           z = 1 + (RV.lerp(s.kb.z0, s.kb.z1, e) - 1) * k;
           const slackX = Math.max(0, (dw * z - rect.w) / 2), slackY = Math.max(0, (dh * z - rect.h) / 2);

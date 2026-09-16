@@ -38,14 +38,18 @@
   async function setProject(p, opts) {
     S.project = p; S.selectedId = null; S.time = 0; stopPlayback();
     S.mixDirty = true; S.mix = null; S.beats = [];
-    S.assets.images.clear(); S.assets.audio.clear();
+    for (const id of Array.from(S.assets.images.keys())) releaseAsset(id);
+    S.assets.audio.clear();
     if (S.renderer) S.renderer.invalidate();
     S.restoring = true;
     /* load assets from IDB */
     for (const s of p.slides) {
       if (!s.assetId || S.assets.images.has(s.assetId)) continue;
       const rec = await RV.store.getAsset(s.assetId).catch(() => null);
-      if (rec && rec.blob) { try { S.assets.images.set(s.assetId, await makeImageAsset(rec.blob)); } catch (e) { console.warn(e); } }
+      if (rec && rec.blob) {
+        try { S.assets.images.set(s.assetId, (rec.kind === 'video' || s.type === 'video') ? await makeVideoAsset(rec.blob) : await makeImageAsset(rec.blob)); }
+        catch (e) { console.warn(e); }
+      }
     }
     for (const t of p.music.tracks) {
       if (!t.assetId || S.assets.audio.has(t.assetId)) continue;
@@ -71,6 +75,34 @@
     c.getContext('2d').drawImage(bmp, 0, 0, tw, th);
     return { bitmap: bmp, width: bmp.width, height: bmp.height, thumb: c.toDataURL('image/jpeg', 0.8) };
   }
+
+  /* video asset: <video> element for frames + decoded audio for the mix + thumbnail */
+  async function makeVideoAsset(blob) {
+    const url = URL.createObjectURL(blob);
+    const v = document.createElement('video');
+    v.muted = true; v.playsInline = true; v.preload = 'auto'; v.src = url;
+    await new Promise((res, rej) => {
+      v.onloadedmetadata = () => res();
+      v.onerror = () => rej(new Error('이 동영상 형식은 브라우저에서 재생할 수 없습니다.'));
+      setTimeout(() => rej(new Error('동영상을 여는 데 시간이 너무 오래 걸립니다.')), 30000);
+    });
+    if (!v.videoWidth) throw new Error('영상 트랙이 없는 파일입니다.');
+    await RV.seekVideo(v, Math.min(0.5, v.duration / 2));
+    const tw = 220, th = Math.round(tw * v.videoHeight / v.videoWidth) || 1;
+    const c = document.createElement('canvas'); c.width = tw; c.height = th;
+    c.getContext('2d').drawImage(v, 0, 0, tw, th);
+    let audioBuffer = null;
+    try { audioBuffer = await RV.audio.ctx.decodeAudioData(await blob.arrayBuffer()); } catch (e) { audioBuffer = null; }
+    return { bitmap: v, video: v, url, width: v.videoWidth, height: v.videoHeight, duration: v.duration, thumb: c.toDataURL('image/jpeg', 0.8), audioBuffer };
+  }
+  function releaseAsset(id) {
+    const a = S.assets.images.get(id);
+    if (a && a.url) { try { a.video.pause(); a.video.removeAttribute('src'); a.video.load(); } catch (e) { /* ignore */ } URL.revokeObjectURL(a.url); }
+    if (a && a.bitmap && a.bitmap.close) { try { a.bitmap.close(); } catch (e) { /* ignore */ } }
+    S.assets.images.delete(id);
+  }
+  const isVideoFile = (f) => /^video\//.test(f.type) || /\.(mp4|m4v|webm|mov|mkv|ogv)$/i.test(f.name);
+  const isImageFile = (f) => /^image\//.test(f.type) || /\.(jpe?g|png|webp|gif|bmp|heic|heif|avif)$/i.test(f.name);
 
   function scheduleSave() {
     clearTimeout(S.saveTimer);
@@ -116,7 +148,8 @@
     else {
       const photoItems = S.tl.items.filter((it) => it.slide.type !== 'title');
       const avg = photoItems.length ? photoItems.reduce((a, it) => a + it.duration, 0) / photoItems.length : 0;
-      let s = '사진 ' + p.slides.length + '장 · 영상 길이 ' + RV.fmtTime(S.tl.total);
+      const nv = p.slides.filter((x) => x.type === 'video').length;
+      let s = (nv ? '화면 ' + p.slides.length + '개 (동영상 ' + nv + '개)' : '사진 ' + p.slides.length + '장') + ' · 영상 길이 ' + RV.fmtTime(S.tl.total);
       if (p.beatSync && S.beats.length) s += ' · 비트 ' + S.beats.length + '개에 맞춤';
       else if (p.fitToMusic && ml > 0) s += ' · 장당 평균 ' + avg.toFixed(1) + '초';
       if (ml > 0 && !p.fitToMusic && !p.beatSync) s += (ml < S.tl.total ? (p.music.loop ? ' · 음악이 짧아 반복됩니다' : ' · 음악이 ' + RV.fmtTime(ml) + '에 끝납니다') : ' · 음악이 영상 끝에서 페이드아웃됩니다');
@@ -145,18 +178,25 @@
     if (!S.renderer) S.renderer = new RV.Renderer(sz.w, sz.h); else S.renderer.setSize(sz.w, sz.h);
     cv.width = sz.w; cv.height = sz.h;
   }
-  function drawFrame() {
+  let drawSeq = 0;
+  async function drawFrame() {
+    const seq = ++drawSeq;
     if (!S.renderer) sizePreview();
     const cv = $('#preview'), ctx = cv.getContext('2d');
     if (!S.tl.items.length) { ctx.fillStyle = '#000'; ctx.fillRect(0, 0, cv.width, cv.height); }
-    else { S.renderer.draw(S.project, S.tl, S.time, S.assets); ctx.drawImage(S.renderer.canvas, 0, 0); }
+    else {
+      if (hasVideo()) { await S.renderer.prepare(S.project, S.tl, S.time, S.assets, S.playing); if (seq !== drawSeq) return; }
+      S.renderer.draw(S.project, S.tl, S.time, S.assets); ctx.drawImage(S.renderer.canvas, 0, 0);
+    }
     $('#tcCur').textContent = RV.fmtTime(S.time, true);
     const sc = $('#scrub'); if (!sc.matches(':active')) sc.value = S.tl.total ? Math.round(S.time / S.tl.total * 1000) : 0;
   }
+  function hasVideo() { return S.project.slides.some((s) => s.type === 'video'); }
+  function pauseVideos() { for (const a of S.assets.images.values()) if (a.video && !a.video.paused) a.video.pause(); }
   async function ensureMix() {
     if (!S.mixDirty && S.mix !== undefined) return S.mix;
     if (S.mixBuilding) return S.mixBuilding;
-    S.mixBuilding = RV.audio.buildMix(S.project, S.assets, S.tl.total).then((b) => { S.mix = b; S.mixDirty = false; S.mixBuilding = null; return b; }).catch((e) => { console.warn(e); S.mixBuilding = null; S.mix = null; S.mixDirty = false; return null; });
+    S.mixBuilding = RV.audio.buildMix(S.project, S.assets, S.tl.total, S.tl).then((b) => { S.mix = b; S.mixDirty = false; S.mixBuilding = null; return b; }).catch((e) => { console.warn(e); S.mixBuilding = null; S.mix = null; S.mixDirty = false; return null; });
     return S.mixBuilding;
   }
   async function play() {
@@ -168,18 +208,18 @@
     RV.audio.play(mix, S.time);
     S.playStartCtx = RV.audio.ctx.currentTime; S.playStartT = S.time; S.playPerf = performance.now();
     cancelAnimationFrame(S.raf);
-    const loop = () => {
+    const loop = async () => {
       if (!S.playing) return;
       const el = mix ? RV.audio.ctx.currentTime - S.playStartCtx : (performance.now() - S.playPerf) / 1000;
       S.time = S.playStartT + el;
-      if (S.time >= S.tl.total) { S.time = S.tl.total; drawFrame(); stopPlayback(false); return; }
-      drawFrame(); highlightCurrent();
-      S.raf = requestAnimationFrame(loop);
+      if (S.time >= S.tl.total) { S.time = S.tl.total; stopPlayback(false); await drawFrame(); return; }
+      await drawFrame(); highlightCurrent();
+      if (S.playing) S.raf = requestAnimationFrame(loop);
     };
     S.raf = requestAnimationFrame(loop);
   }
   function stopPlayback(reset) {
-    S.playing = false; cancelAnimationFrame(S.raf); RV.audio.stop(); $('#btnPlay').textContent = '▶';
+    S.playing = false; cancelAnimationFrame(S.raf); RV.audio.stop(); pauseVideos(); $('#btnPlay').textContent = '▶';
     if (reset) { S.time = 0; drawFrame(); }
   }
   function togglePlay() { if (S.playing) stopPlayback(false); else play(); }
@@ -192,28 +232,33 @@
 
   /* ---------------- adding assets ---------------- */
   async function addPhotos(files) {
-    const list = Array.from(files).filter((f) => /^image\//.test(f.type) || /\.(jpe?g|png|webp|gif|bmp|heic|heif|avif)$/i.test(f.name));
-    if (!list.length) { toast('사진 파일이 없습니다.', true); return; }
+    const list = Array.from(files).filter((f) => isImageFile(f) || isVideoFile(f));
+    if (!list.length) { toast('사진 또는 동영상 파일이 없습니다.', true); return; }
     list.sort((a, b) => a.name.localeCompare(b.name, 'ko', { numeric: true }));
-    let ok = 0, fail = 0, firstId = null;
-    toast('사진 ' + list.length + '장 불러오는 중…');
+    let ok = 0, fail = 0, firstId = null, vids = 0;
+    toast('파일 ' + list.length + '개 불러오는 중…');
     for (const f of list) {
       try {
-        const asset = await makeImageAsset(f);
-        const id = RV.uid('img');
-        await RV.store.putAsset(id, { blob: f, name: f.name, kind: 'image' });
+        const video = isVideoFile(f) && !isImageFile(f);
+        if (video) toast('동영상 분석 중: ' + f.name);
+        const asset = video ? await makeVideoAsset(f) : await makeImageAsset(f);
+        const id = RV.uid(video ? 'vid' : 'img');
+        await RV.store.putAsset(id, { blob: f, name: f.name, kind: video ? 'video' : 'image' });
         S.assets.images.set(id, asset);
-        const slide = RV.createSlide({ name: f.name, assetId: id, width: asset.width, height: asset.height, mtime: f.lastModified || 0 });
+        const slide = RV.createSlide(video
+          ? { type: 'video', name: f.name, assetId: id, width: asset.width, height: asset.height, srcDuration: asset.duration, in: 0, out: 0, volume: 1, muted: false, mtime: f.lastModified || 0 }
+          : { name: f.name, assetId: id, width: asset.width, height: asset.height, mtime: f.lastModified || 0 });
         slide.caption = Object.assign(RV.defaultCaption(), JSON.parse(JSON.stringify(S.project.captionDefaults)), { text: '' });
         const idx = selectedIndex();
         if (idx >= 0) S.project.slides.splice(idx + 1 + ok, 0, slide); else S.project.slides.push(slide);
         if (!firstId) firstId = slide.id;
-        ok++;
-      } catch (e) { console.warn('image load failed', f.name, e); fail++; }
+        ok++; if (video) vids++;
+      } catch (e) { console.warn('media load failed', f.name, e); fail++; toast(f.name + ': ' + (e.message || '열 수 없습니다'), true); }
     }
     update();
     if (firstId) select(firstId, true);
-    toast('사진 ' + ok + '장 추가' + (fail ? ' · ' + fail + '장 실패(지원하지 않는 형식)' : ''), !!fail && !ok);
+    toast((ok - vids) + '장 사진' + (vids ? ' · 동영상 ' + vids + '개' : '') + ' 추가' + (fail ? ' · ' + fail + '개 실패' : ''), !!fail && !ok);
+    if (vids) toast('동영상 구간은 자막 탭에서 잘라 쓸 수 있습니다.');
   }
   function addTextSlide() {
     const slide = RV.createSlide({ type: 'text', name: '텍스트 화면', bgStyle: 'night' });
@@ -289,7 +334,8 @@
       if (s.type === 'text') thumb = '<div class="thumb text-card"></div>';
       else if (img) thumb = '<img class="thumb" draggable="false" src="' + img.thumb + '">';
       else thumb = '<div class="thumb text-card">불러올 수 없음</div>';
-      const d = mk(s.id === S.selectedId ? 'sel' : '', thumb + '<div class="meta"><span class="idx">' + (i + 1) + '</span><span class="nm"></span><span class="dur">' + it.duration.toFixed(1) + 's</span></div>' + (s.caption.text ? '<span class="cap-dot">자막</span>' : '') + (s.rotation ? '<span class="rot">' + s.rotation + '°</span>' : ''));
+      const badges = (s.type === 'video' ? '<span class="cap-dot vid">▶ 동영상' + (s.caption.text ? ' · 자막' : '') + '</span>' : (s.caption.text ? '<span class="cap-dot">자막</span>' : '')) + (s.rotation ? '<span class="rot">' + s.rotation + '°</span>' : '');
+      const d = mk(s.id === S.selectedId ? 'sel' : '', thumb + '<div class="meta"><span class="idx">' + (i + 1) + '</span><span class="nm"></span><span class="dur">' + it.duration.toFixed(1) + 's</span></div>' + badges);
       d.dataset.id = s.id; d.draggable = true;
       d.querySelector('.nm').textContent = s.name;
       if (s.type === 'text') d.querySelector('.thumb').textContent = s.caption.text || '텍스트';
@@ -333,11 +379,11 @@
   function deleteSelected() {
     const i = selectedIndex(); if (i < 0) return;
     const [s] = S.project.slides.splice(i, 1);
-    if (s.assetId && !S.project.slides.some((x) => x.assetId === s.assetId)) { S.assets.images.delete(s.assetId); RV.store.deleteAsset(s.assetId).catch(() => {}); }
+    if (s.assetId && !S.project.slides.some((x) => x.assetId === s.assetId)) { releaseAsset(s.assetId); RV.store.deleteAsset(s.assetId).catch(() => {}); }
     S.selectedId = null; update();
     if (S.project.slides.length) select(S.project.slides[Math.min(i, S.project.slides.length - 1)].id, true); else markSelection();
   }
-  function rotateSelected(deg) { const s = selectedSlide(); if (!s || s.type !== 'photo') return; s.rotation = ((s.rotation || 0) + deg + 360) % 360; S.renderer.invalidate(); update(); }
+  function rotateSelected(deg) { const s = selectedSlide(); if (!s || (s.type !== 'photo' && s.type !== 'video')) return; s.rotation = ((s.rotation || 0) + deg + 360) % 360; S.renderer.invalidate(); update(); }
   function sortSlides(mode) {
     const p = S.project;
     if (mode === 'name') p.slides.sort((a, b) => a.name.localeCompare(b.name, 'ko', { numeric: true }));
@@ -362,6 +408,7 @@
     $('#kbIntensity').value = p.kbIntensity == null ? 1 : p.kbIntensity;
     $('#musicVolume').value = p.music.volume; $('#musicVolumeVal').textContent = Math.round(p.music.volume * 100) + '%';
     $('#fadeIn').value = p.music.fadeIn; $('#fadeOut').value = p.music.fadeOut; $('#trimStart').value = p.music.trimStart || 0; $('#musicLoop').checked = p.music.loop;
+    $('#duckVideo').checked = p.music.duckVideo !== false; $('#duckLevel').value = p.music.duckLevel == null ? 0.25 : p.music.duckLevel; $('#duckLevelVal').textContent = Math.round((p.music.duckLevel == null ? 0.25 : p.music.duckLevel) * 100) + '%';
     renderMusicLists(); sizePreview(); syncSlideControls();
   }
   function syncSlideControls() {
@@ -373,6 +420,20 @@
     $$('#posGrid button').forEach((b) => b.classList.toggle('on', b.dataset.pos === cap.pos));
     $$('#capEffects button').forEach((b) => b.classList.toggle('on', b.dataset.fx === cap.effect));
     $('#slideDuration').value = s && s.duration != null ? s.duration : ''; $('#slideDuration').disabled = !s || p.fitToMusic || p.beatSync;
+    const isVid = !!(s && s.type === 'video');
+    $('#durationRow').hidden = isVid; $('#videoBox').hidden = !isVid;
+    if (isVid) {
+      const src = +s.srcDuration || 0, inPt = Math.max(0, +s.in || 0), outPt = (s.out && s.out > inPt) ? Math.min(s.out, src) : src;
+      ['#vInRange', '#vOutRange'].forEach((sel) => { $(sel).max = src.toFixed(1); });
+      $('#vIn').max = src.toFixed(1); $('#vOut').max = src.toFixed(1);
+      $('#vInRange').value = inPt.toFixed(1); $('#vOutRange').value = outPt.toFixed(1);
+      $('#vIn').value = inPt.toFixed(1); $('#vOut').value = outPt.toFixed(1);
+      $('#vSrcLen').textContent = '(원본 ' + RV.fmtTime(src, true) + ')';
+      $('#vLen').textContent = '구간 ' + (outPt - inPt).toFixed(1) + '초';
+      const sel = $('#vSel'); sel.style.left = (src ? inPt / src * 100 : 0) + '%'; sel.style.width = (src ? (outPt - inPt) / src * 100 : 100) + '%';
+      $('#vVolume').value = s.volume == null ? 1 : s.volume; $('#vVolumeVal').textContent = Math.round((s.volume == null ? 1 : s.volume) * 100) + '%';
+      $('#vMute').checked = !!s.muted;
+    }
     const eff = (key) => (s && s[key] != null ? s[key] : p[key]);
     const mark = (grid, val, isOverride) => $$('.tile', $(grid)).forEach((t) => { t.classList.toggle('on', t.dataset.id === val); t.classList.toggle('override', isOverride && t.dataset.id === val); });
     mark('#bgGrid', eff('bgStyle'), !!(s && s.bgStyle != null));
@@ -587,7 +648,7 @@
     on('#btnRemoveMusic', 'click', () => { const m = p().music; const id = S.selectedTrack || (m.tracks.length ? m.tracks[m.tracks.length - 1].id : null); if (id) removeTrack(id); });
     on('#btnAddText', 'click', addTextSlide);
     on('#btnDelete', 'click', deleteSelected);
-    on('#btnClear', 'click', () => { if (!p().slides.length) return; if (!confirm('모든 화면을 삭제할까요?')) return; p().slides.forEach((s) => s.assetId && RV.store.deleteAsset(s.assetId).catch(() => {})); p().slides = []; S.assets.images.clear(); S.selectedId = null; update(); markSelection(); });
+    on('#btnClear', 'click', () => { if (!p().slides.length) return; if (!confirm('모든 화면을 삭제할까요?')) return; stopPlayback(false); p().slides.forEach((s) => { if (s.assetId) { RV.store.deleteAsset(s.assetId).catch(() => {}); releaseAsset(s.assetId); } }); p().slides = []; S.selectedId = null; update(); markSelection(); });
     on('#sortSel', 'change', (e) => { if (e.target.value) sortSlides(e.target.value); e.target.value = ''; });
     on('#btnRotL', 'click', () => rotateSelected(-90)); on('#btnRotR', 'click', () => rotateSelected(90));
     on('#btnNew', 'click', newProject); on('#btnOpen', 'click', () => $('#fileProj').click()); on('#btnSave', 'click', saveProjectFile);
@@ -604,9 +665,9 @@
       if (!e.dataTransfer.files.length) return; e.preventDefault();
       const files = Array.from(e.dataTransfer.files);
       const proj = files.find((f) => /\.rvproj$/i.test(f.name)); if (proj) { openProjectFile(proj); return; }
-      const imgs = files.filter((f) => /^image\//.test(f.type)), auds = files.filter((f) => /^audio\//.test(f.type) || /\.(mp3|m4a|wav|ogg|flac)$/i.test(f.name));
+      const imgs = files.filter((f) => isImageFile(f) || isVideoFile(f)), auds = files.filter((f) => /^audio\//.test(f.type) || /\.(mp3|m4a|wav|ogg|flac)$/i.test(f.name));
       if (imgs.length) addPhotos(imgs); if (auds.length) addMusic(auds);
-      if (!imgs.length && !auds.length) toast('사진 또는 음악 파일을 놓아주세요.', true);
+      if (!imgs.length && !auds.length) toast('사진, 동영상 또는 음악 파일을 놓아주세요.', true);
     });
 
     /* player */
@@ -652,6 +713,27 @@
     on('#fadeOut', 'change', (e) => { p().music.fadeOut = Math.max(0, +e.target.value || 0); S.mixDirty = true; scheduleSave(); });
     on('#trimStart', 'change', (e) => { p().music.trimStart = Math.max(0, +e.target.value || 0); update(); });
     on('#musicLoop', 'change', (e) => { p().music.loop = e.target.checked; update(); });
+    on('#duckVideo', 'change', (e) => { p().music.duckVideo = e.target.checked; S.mixDirty = true; scheduleSave(); });
+    on('#duckLevel', 'input', (e) => { p().music.duckLevel = +e.target.value; $('#duckLevelVal').textContent = Math.round(p().music.duckLevel * 100) + '%'; S.mixDirty = true; scheduleSave(); });
+
+    /* video trim */
+    const setTrim = (inPt, outPt, seekPreview) => {
+      const s = selectedSlide(); if (!s || s.type !== 'video') return;
+      const src = +s.srcDuration || 0;
+      inPt = RV.clamp(+inPt || 0, 0, Math.max(0, src - 0.5));
+      outPt = RV.clamp(+outPt || src, inPt + 0.5, src);
+      s.in = Math.round(inPt * 10) / 10; s.out = outPt >= src - 0.05 ? 0 : Math.round(outPt * 10) / 10;
+      update(); syncSlideControls();
+      const it = S.tl.byId[s.id];
+      if (it && seekPreview === 'in') seek(it.start + it.trIn + 0.01); else if (it && seekPreview === 'out') seek(Math.max(it.start, it.end - 0.05));
+    };
+    on('#vInRange', 'input', (e) => setTrim(e.target.value, $('#vOutRange').value, 'in'));
+    on('#vOutRange', 'input', (e) => setTrim($('#vInRange').value, e.target.value, 'out'));
+    on('#vIn', 'change', (e) => setTrim(e.target.value, $('#vOut').value, 'in'));
+    on('#vOut', 'change', (e) => setTrim($('#vIn').value, e.target.value, 'out'));
+    on('#vReset', 'click', () => { const s = selectedSlide(); if (s) setTrim(0, s.srcDuration, 'in'); });
+    on('#vVolume', 'input', (e) => { const s = selectedSlide(); if (!s) return; s.volume = +e.target.value; $('#vVolumeVal').textContent = Math.round(s.volume * 100) + '%'; S.mixDirty = true; scheduleSave(); });
+    on('#vMute', 'change', (e) => { const s = selectedSlide(); if (!s) return; s.muted = e.target.checked; S.mixDirty = true; scheduleSave(); });
 
     /* export modal */
     on('#exPreset', 'change', (e) => applyPreset(e.target.value));

@@ -16,9 +16,19 @@
   }
 
   function slideDuration(project, s) {
+    if (s.type === 'video') return Math.max(MIN_DUR, videoClipLength(s));
     const d = (s.duration != null && s.duration > 0) ? s.duration : project.defaultDuration;
     return Math.max(MIN_DUR, +d || 3);
   }
+  /* video clip length from in/out points (out 0 => source end) */
+  function videoClipLength(s) {
+    const src = +s.srcDuration || 0;
+    const a = Math.max(0, +s.in || 0);
+    const b = (s.out && s.out > a) ? Math.min(s.out, src || s.out) : src;
+    return Math.max(0, b - a);
+  }
+  /* durations that must not be rescaled by fit-to-music / beat sync */
+  function isFixed(s) { return s.type === 'video'; }
 
   function transitionOf(project, s) {
     const t = s.transition != null ? s.transition : project.transition;
@@ -64,17 +74,22 @@
     let trs = computeTransitions(project, seq, durations);
 
     const musicLen = opts.musicLength || 0;
-    if (project.beatSync && opts.beats && opts.beats.length > 2 && musicLen > 1) {
-      durations = beatDurations(seq.length, musicLen, opts.beats, trs);
+    const fixed = seq.map((s) => (isFixed(s) ? slideDuration(project, s) : null));
+    const anyFree = fixed.some((f) => f == null);
+    if (project.beatSync && anyFree && opts.beats && opts.beats.length > 2 && musicLen > 1) {
+      durations = beatDurations(seq.length, musicLen, opts.beats, trs, fixed);
       trs = computeTransitions(project, seq, durations);
-      durations = beatDurations(seq.length, musicLen, opts.beats, trs);
+      durations = beatDurations(seq.length, musicLen, opts.beats, trs, fixed);
       trs = computeTransitions(project, seq, durations);
-    } else if (project.fitToMusic && musicLen > 1) {
+    } else if (project.fitToMusic && anyFree && musicLen > 1) {
       for (let iter = 0; iter < 3; iter++) {
-        const sumD = durations.reduce((a, b) => a + b, 0);
         const sumT = trs.reduce((a, b) => a + b, 0);
-        const k = (musicLen + sumT) / sumD;
-        durations = durations.map((d) => Math.max(MIN_DUR, d * k));
+        let sumFree = 0, sumFixed = 0;
+        durations.forEach((d, i) => { if (fixed[i] == null) sumFree += d; else sumFixed += fixed[i]; });
+        const target = musicLen + sumT - sumFixed;
+        if (target <= 0 || sumFree <= 0) break;
+        const k = target / sumFree;
+        durations = durations.map((d, i) => (fixed[i] == null ? Math.max(MIN_DUR, d * k) : fixed[i]));
         trs = computeTransitions(project, seq, durations);
       }
     }
@@ -86,13 +101,19 @@
   };
 
   /* snap N slide boundaries to beats within [0, L] */
-  function beatDurations(n, L, beats, trs) {
+  function beatDurations(n, L, beats, trs, fixed) {
     const MIN_GAP = 0.7;
     const bounds = [0];
     const sorted = beats.filter((b) => b > 0 && b < L).sort((a, b) => a - b);
     let prev = 0;
+    /* free items share the time left after fixed clips, in proportion to their position */
+    const fixedTotal = fixed ? fixed.reduce((a, f) => a + (f || 0), 0) : 0;
+    const freeCount = fixed ? fixed.filter((f) => f == null).length : n;
+    const freeSlot = Math.max(MIN_DUR, (L - fixedTotal) / Math.max(1, freeCount));
     for (let i = 1; i < n; i++) {
-      const ideal = (i * L) / n;
+      const prevFixed = fixed && fixed[i - 1] != null;
+      if (prevFixed) { const b = prev + fixed[i - 1] - (i - 1 > 0 ? trs[i - 1] : 0); bounds.push(Math.min(L, b)); prev = bounds[bounds.length - 1]; continue; }
+      const ideal = prev + freeSlot;
       let best = ideal, bestDist = Infinity;
       for (const b of sorted) {
         if (b <= prev + MIN_GAP) continue;
@@ -135,4 +156,5 @@
 
   RV.transitionOf = transitionOf;
   RV.slideDuration = slideDuration;
+  RV.videoClipLength = videoClipLength;
 })(typeof window !== 'undefined' ? window : globalThis);

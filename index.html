@@ -9,7 +9,7 @@
 </head>
 <body>
 <header class="topbar">
-  <div class="brand"><span class="logo">▶</span><span class="name">RuninqVic</span><span class="ver">v1.0</span></div>
+  <div class="brand"><span class="logo">▶</span><span class="name">RuninqVic</span><span class="ver">v1.1</span></div>
   <input id="projName" class="proj-name" title="프로젝트 이름" spellcheck="false">
   <div class="top-actions">
     <button id="btnNew" title="새 프로젝트 (Ctrl+N)">새로 만들기</button>
@@ -62,8 +62,8 @@
 
       <div class="tab-page active" data-page="quick">
         <div class="step">
-          <div class="step-h"><span class="num">1</span>사진을 추가해보세요.<button id="btnAddPhotos" class="step-btn">📷 사진추가</button></div>
-          <div class="hint">폴더에서 여러 장을 끌어다 놓아도 됩니다. JPG · PNG · WEBP · HEIC(브라우저 지원 시)</div>
+          <div class="step-h"><span class="num">1</span>사진과 동영상을 추가해보세요.<button id="btnAddPhotos" class="step-btn">📷 사진·동영상 추가</button></div>
+          <div class="hint">폴더에서 여러 개를 끌어다 놓아도 됩니다. 사진 JPG · PNG · WEBP, 동영상 MP4 · WEBM · MOV. 동영상은 자막 탭에서 구간을 잘라 쓸 수 있습니다.</div>
         </div>
         <div class="step">
           <div class="step-h"><span class="num">2</span>배경음악을 골라보세요. <span class="muted" id="musicTotal">(00:00)</span>
@@ -128,9 +128,28 @@
             <div class="fx-list" id="capEffects"></div>
           </div>
         </div>
-        <div class="row">
+        <div class="row" id="durationRow">
           <label>이 화면 재생시간 <input type="number" id="slideDuration" min="0.5" max="120" step="0.5" placeholder="기본"> 초</label>
           <button id="slideDurationReset" class="mini" title="기본값으로">↺</button>
+        </div>
+        <div class="video-box" id="videoBox" hidden>
+          <div class="sub-h">🎬 동영상 구간 <span class="muted" id="vSrcLen"></span></div>
+          <div class="trim">
+            <div class="trim-track" id="vTrack"><div class="trim-sel" id="vSel"></div></div>
+            <input type="range" id="vInRange" min="0" max="10" step="0.1" value="0" title="시작 지점">
+            <input type="range" id="vOutRange" min="0" max="10" step="0.1" value="10" title="끝 지점">
+          </div>
+          <div class="row">
+            <label>시작 <input type="number" id="vIn" min="0" step="0.1"> 초</label>
+            <label>끝 <input type="number" id="vOut" min="0" step="0.1"> 초</label>
+            <span class="muted" id="vLen"></span>
+            <button id="vReset" class="mini" title="전체 구간">전체</button>
+          </div>
+          <div class="row">
+            <label>동영상 소리 <input type="range" id="vVolume" min="0" max="1.5" step="0.05"> <span id="vVolumeVal">100%</span></label>
+            <label class="chk"><input type="checkbox" id="vMute"> 음소거</label>
+          </div>
+          <div class="hint">동영상 화면의 재생시간은 선택한 구간 길이와 같습니다. 이동과 확대축소는 동영상에 적용되지 않습니다.</div>
         </div>
         <div class="row nav-row">
           <button id="capApplyAll" class="ghost" title="글꼴·크기·색·위치·효과를 모든 화면에 적용">스타일 전체적용</button>
@@ -168,6 +187,7 @@
         <div class="row"><label>전체 볼륨 <input type="range" id="musicVolume" min="0" max="1.5" step="0.05"> <span id="musicVolumeVal">100%</span></label></div>
         <div class="row"><label>페이드 인 <input type="number" id="fadeIn" min="0" max="15" step="0.5"> 초</label><label>페이드 아웃 <input type="number" id="fadeOut" min="0" max="15" step="0.5"> 초</label></div>
         <div class="row"><label>시작 지점 자르기 <input type="number" id="trimStart" min="0" step="1"> 초</label><label class="chk"><input type="checkbox" id="musicLoop"> 영상이 더 길면 반복</label></div>
+        <div class="row"><label class="chk"><input type="checkbox" id="duckVideo"> 동영상 소리가 날 때 음악 줄이기</label><label>음악 크기 <input type="range" id="duckLevel" min="0" max="1" step="0.05"> <span id="duckLevelVal">25%</span></label></div>
         <div class="hint" id="beatInfo">음악을 넣으면 비트를 자동으로 분석합니다.</div>
       </div>
     </div>
@@ -178,7 +198,7 @@
   <div class="tl-head">
     <span class="tl-title">타임라인 (<span id="slideCount">0</span>장) <span class="muted">· 영상 길이 <span id="tlTotal">00:00</span></span></span>
     <div class="tl-actions">
-      <button id="btnAddPhotos2">📷 사진추가</button>
+      <button id="btnAddPhotos2">📷 사진·동영상 추가</button>
       <button id="btnAddText">➕ 새화면추가</button>
       <select id="sortSel" title="정렬"><option value="">정렬…</option><option value="name">이름순</option><option value="date">촬영·수정일순</option><option value="reverse">순서 뒤집기</option><option value="shuffle">무작위 섞기</option></select>
       <span class="vsep"></span>
@@ -225,7 +245,7 @@
     <div class="modal-body help">
       <h3>1. 간편만들기</h3>
       <ol>
-        <li><b>사진추가</b>로 사진을 넣습니다. 폴더에서 화면으로 끌어다 놓아도 됩니다.</li>
+        <li><b>사진·동영상 추가</b>로 사진이나 짧은 동영상을 넣습니다. 폴더에서 화면으로 끌어다 놓아도 됩니다. 동영상은 자막 탭에서 시작·끝 구간을 잘라 길이를 정합니다.</li>
         <li><b>배경음악</b>을 넣습니다. 여러 곡을 넣으면 순서대로 이어집니다.</li>
         <li><b>재생시간</b>을 정합니다. <i>음악 재생시간에 균등하게 맞춤</i>을 켜면 음악 길이에 맞춰 사진 시간을 자동 배분하고, <i>비트에 맞춰</i>를 켜면 박자에 맞춰 장면이 바뀝니다.</li>
         <li><b>오프닝·엔딩</b> 제목을 확인합니다.</li>
@@ -246,7 +266,7 @@
   </div>
 </div>
 
-<input type="file" id="filePhotos" multiple accept="image/*" hidden>
+<input type="file" id="filePhotos" multiple accept="image/*,video/*,.mp4,.webm,.mov,.m4v" hidden>
 <input type="file" id="fileMusic" multiple accept="audio/*,.mp3,.m4a,.wav,.ogg,.aac,.flac" hidden>
 <input type="file" id="fileProj" accept=".rvproj,.json" hidden>
 <div id="toast"></div>

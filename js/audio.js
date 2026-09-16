@@ -25,16 +25,43 @@
       return Math.max(0, total - (project.music.trimStart || 0));
     },
 
-    /* build the final mixed stereo buffer for [0, duration] */
-    async buildMix(project, assets, duration) {
+    /* build the final mixed stereo buffer for [0, duration]: music tracks + video clip audio (with ducking) */
+    async buildMix(project, assets, duration, tl) {
       const m = project.music;
       const tracks = m.tracks.map((t) => ({ t, a: assets.audio.get(t.assetId) })).filter((x) => x.a && x.a.buffer);
-      if (!tracks.length || duration <= 0) return null;
+      const vids = ((tl && tl.items) || []).filter((it) => it.slide.type === 'video' && !it.slide.muted && (it.slide.volume == null || it.slide.volume > 0))
+        .map((it) => ({ it, a: assets.images.get(it.slide.assetId) })).filter((x) => x.a && x.a.audioBuffer);
+      if ((!tracks.length && !vids.length) || duration <= 0) return null;
       const frames = Math.ceil(duration * SR);
       const off = new OfflineAudioContext(2, frames, SR);
+      const duck = off.createGain(); duck.connect(off.destination);
       const master = off.createGain();
-      master.connect(off.destination);
+      master.connect(duck);
       const vol = m.volume == null ? 1 : m.volume;
+
+      /* video clip audio (bypasses music fades/ducking) */
+      for (const { it, a } of vids) {
+        const src = off.createBufferSource(); src.buffer = a.audioBuffer;
+        const g = off.createGain(); g.gain.value = it.slide.volume == null ? 1 : it.slide.volume;
+        src.connect(g); g.connect(off.destination);
+        const inPt = Math.max(0, +it.slide.in || 0);
+        const len = Math.max(0, Math.min(it.duration, a.audioBuffer.duration - inPt));
+        if (len > 0) src.start(it.start, inPt, len);
+      }
+      /* duck music while video sound plays */
+      if (vids.length && m.duckVideo !== false && tracks.length) {
+        const lvl = m.duckLevel == null ? 0.25 : m.duckLevel, R = 0.4;
+        const ivs = vids.map(({ it }) => [it.start, it.end]).sort((p, q) => p[0] - q[0]);
+        const merged = [];
+        for (const iv of ivs) { const last = merged[merged.length - 1]; if (last && iv[0] <= last[1] + R) last[1] = Math.max(last[1], iv[1]); else merged.push(iv.slice()); }
+        duck.gain.setValueAtTime(1, 0);
+        for (const [s, e] of merged) {
+          const s0 = Math.max(0, s), e0 = Math.min(duration, e);
+          duck.gain.setValueAtTime(1, s0); duck.gain.linearRampToValueAtTime(lvl, Math.min(e0, s0 + R));
+          duck.gain.setValueAtTime(lvl, Math.max(s0 + R, e0 - R)); duck.gain.linearRampToValueAtTime(1, e0);
+        }
+      }
+      if (!tracks.length) return await off.startRendering();
 
       /* schedule sequence */
       let pos = 0, offset = m.trimStart || 0, pass = 0, musicEnd = 0;

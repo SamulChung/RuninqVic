@@ -72,3 +72,24 @@ function proj(n, over) {
   assert.strictEqual(RV.computeTimeline(p).total, 8);
 }
 console.log('timeline tests passed');
+
+// 9. video clip: duration = out - in, not rescaled by fit-to-music
+{
+  const p = proj(3, { fitToMusic: true, transition: 'none' });
+  p.slides[1].type = 'video'; p.slides[1].srcDuration = 20; p.slides[1].in = 2; p.slides[1].out = 8;
+  const tl = RV.computeTimeline(p, { musicLength: 30 });
+  assert.strictEqual(tl.items[1].duration, 6);
+  assert.ok(Math.abs(tl.total - 30) < 0.01, 'video fit total ' + tl.total);
+  assert.ok(Math.abs(tl.items[0].duration - 12) < 0.01, 'photos share the rest: ' + tl.items[0].duration);
+}
+// 10. video with out=0 uses source end; beat sync keeps clip length
+{
+  const beats = []; for (let t = 0.5; t < 40; t += 0.5) beats.push(t);
+  const p = proj(3, { beatSync: true, transition: 'none' });
+  p.slides[0].type = 'video'; p.slides[0].srcDuration = 10; p.slides[0].in = 0; p.slides[0].out = 0;
+  const tl = RV.computeTimeline(p, { musicLength: 40, beats });
+  assert.strictEqual(tl.items[0].duration, 10);
+  assert.ok(Math.abs(tl.total - 40) < 0.01, 'beat total ' + tl.total);
+  assert.ok(Math.abs(tl.items[1].start - 10) < 1e-9, 'video boundary at clip end');
+}
+console.log('video timeline tests passed');

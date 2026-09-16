@@ -2,7 +2,7 @@
 (function (root) {
   const RV = (root.RV = root.RV || {});
 
-  RV.VERSION = '1.0.0';
+  RV.VERSION = '1.1.0';
 
   RV.ASPECTS = {
     '16:9': { w: 16, h: 9, label: '와이드 (16:9)' },
@@ -65,9 +65,11 @@
   RV.createSlide = function (opts) {
     const id = RV.uid('s');
     return Object.assign({
-      id, type: 'photo', /* photo | text */
+      id, type: 'photo', /* photo | text | video */
       name: '', assetId: null, width: 0, height: 0,
-      duration: null, /* null => project default */
+      duration: null, /* null => project default (photo/text only) */
+      /* video only */
+      srcDuration: 0, in: 0, out: 0, volume: 1, muted: false,
       rotation: 0,
       transition: null, /* null => project default */
       bgStyle: null, frame: null, cinematic: null,
@@ -98,7 +100,7 @@
       slides: [],
       opening: { enabled: true, title: dateStr, subtitle: '', duration: 3, style: 'classic' },
       ending: { enabled: true, title: 'RuninqVic', subtitle: '', duration: 3, style: 'classic' },
-      music: { tracks: [], volume: 1, fadeIn: 1.5, fadeOut: 3, loop: true, trimStart: 0 },
+      music: { tracks: [], volume: 1, fadeIn: 1.5, fadeOut: 3, loop: true, trimStart: 0, duckVideo: true, duckLevel: 0.25 },
       captionDefaults: RV.defaultCaption(),
       export: { res: '1080p', fps: 30, quality: 'high', bitrate: 0, name: '' },
     };
