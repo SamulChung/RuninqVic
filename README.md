@@ -7,6 +7,7 @@
 ## 바로 사용하기
 - 웹: **https://runinqvic.vercel.app** (Edge/Chrome, 설치 불필요)
 - 소스: https://github.com/SamulChung/RuninqVic
+- 사용설명서: https://runinqvic.vercel.app/manual (Word 버전: `docs/manual/RuninqVic_사용설명서.docx`)
 
 ## PC에서 실행
 1. `RuninqVic.bat` 을 더블클릭합니다. (Edge 또는 Chrome 이 앱 창으로 열립니다)
@@ -31,6 +32,12 @@
   `state`(모델) · `timeline`(시간 배분) · `designs`(프리셋) · `render`(캔버스 렌더러) · `audio`(믹스/비트 검출) · `exporter`(WebCodecs) · `store`(IndexedDB/.rvproj) · `app`(UI)
 - 인코딩: WebCodecs `VideoEncoder`(H.264, GPU 가속) + `AudioEncoder`(AAC) → `mp4-muxer`. H.264 를 못 쓰는 환경은 VP9/Opus WebM 으로 자동 대체.
 - 미리보기와 결과물이 같은 렌더러를 쓰므로 화면에서 본 그대로 저장됩니다.
+
+## 사용설명서 다시 만들기
+스크린샷은 `docs/manual/img/`, 본문은 `docs/manual/content.js` 에 있습니다.
+```
+NODE_PATH=<docx 패키지가 설치된 node_modules> node docs/manual/build-manual.js
+```
 
 ## 테스트
 ```
