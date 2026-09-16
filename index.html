@@ -18,7 +18,7 @@
 </head>
 <body>
 <header class="topbar">
-  <div class="brand"><span class="logo">▶</span><span class="name">RuninqVic</span><span class="ver">v1.2</span><a class="maker-logo" href="https://www.tenai.kr" target="_blank" rel="noopener" title="제작: (주)텐에이아이 · www.tenai.kr"><img src="assets/tenai-logo-dark.png" alt="TenAI"></a></div>
+  <div class="brand"><span class="logo">▶</span><span class="name">RuninqVic</span><span class="ver">v1.3</span><a class="maker-logo" href="https://www.tenai.kr" target="_blank" rel="noopener" title="제작: (주)텐에이아이 · www.tenai.kr"><img src="assets/tenai-logo-dark.png" alt="TenAI"></a></div>
   <input id="projName" class="proj-name" title="프로젝트 이름" spellcheck="false">
   <div class="top-actions">
     <button id="btnNew" title="새 프로젝트 (Ctrl+N)"><span class="ico">🆕</span><span class="txt">새로 만들기</span></button>
@@ -144,23 +144,33 @@
           <button id="slideDurationReset" class="mini" title="기본값으로">↺</button>
         </div>
         <div class="video-box" id="videoBox" hidden>
-          <div class="sub-h">🎬 동영상 구간 <span class="muted" id="vSrcLen"></span></div>
-          <div class="trim">
-            <div class="trim-track" id="vTrack"><div class="trim-sel" id="vSel"></div></div>
-            <input type="range" id="vInRange" min="0" max="10" step="0.1" value="0" title="시작 지점">
-            <input type="range" id="vOutRange" min="0" max="10" step="0.1" value="10" title="끝 지점">
+          <div class="sub-h">🎬 동영상 구간 자르기 <span class="muted" id="vSrcLen"></span></div>
+          <div class="trimmer" id="trimmer">
+            <div class="strip" id="vStrip"></div>
+            <div class="dim dim-l" id="vDimL"></div>
+            <div class="dim dim-r" id="vDimR"></div>
+            <div class="sel-box" id="vSelBox"></div>
+            <div class="playhead" id="vPlayhead"></div>
+            <div class="handle handle-l" id="vHandleL" tabindex="0" title="시작 지점 (끌어서 조절)"><span class="lbl" id="vLblIn">0.0</span></div>
+            <div class="handle handle-r" id="vHandleR" tabindex="0" title="끝 지점 (끌어서 조절)"><span class="lbl" id="vLblOut">0.0</span></div>
           </div>
-          <div class="row">
-            <label>시작 <input type="number" id="vIn" min="0" step="0.1"> 초</label>
-            <label>끝 <input type="number" id="vOut" min="0" step="0.1"> 초</label>
-            <span class="muted" id="vLen"></span>
-            <button id="vReset" class="mini" title="전체 구간">전체</button>
+          <div class="row trim-row">
+            <span class="fld">시작 <button class="mini" id="vInMinus" title="0.5초 앞으로">−</button><input type="number" id="vIn" min="0" step="0.1"><button class="mini" id="vInPlus" title="0.5초 뒤로">＋</button></span>
+            <span class="fld">끝 <button class="mini" id="vOutMinus" title="0.5초 앞으로">−</button><input type="number" id="vOut" min="0" step="0.1"><button class="mini" id="vOutPlus" title="0.5초 뒤로">＋</button></span>
+            <span class="fld">길이 <input type="number" id="vLenIn" min="0.5" step="0.5" title="구간 길이(초). 시작 지점은 그대로 두고 끝을 맞춥니다"> 초</span>
+          </div>
+          <div class="row trim-row">
+            <button id="vSetIn" class="ghost" title="미리보기의 현재 장면을 시작 지점으로 (I)">⏵ 여기서부터</button>
+            <button id="vSetOut" class="ghost" title="미리보기의 현재 장면을 끝 지점으로 (O)">⏴ 여기까지</button>
+            <button id="vPlaySeg" class="ghost" title="선택한 구간만 재생">▶ 구간 재생</button>
+            <span class="grow"></span>
+            <span class="quick">빠른 선택 <button class="mini" data-len="3">3초</button><button class="mini" data-len="5">5초</button><button class="mini" data-len="10">10초</button><button class="mini" id="vReset">전체</button></span>
           </div>
           <div class="row">
             <label>동영상 소리 <input type="range" id="vVolume" min="0" max="1.5" step="0.05"> <span id="vVolumeVal">100%</span></label>
             <label class="chk"><input type="checkbox" id="vMute"> 음소거</label>
           </div>
-          <div class="hint">동영상 화면의 재생시간은 선택한 구간 길이와 같습니다. 이동과 확대축소는 동영상에 적용되지 않습니다.</div>
+          <div class="hint">미리보기를 원하는 장면에 멈춘 뒤 <b>여기서부터</b> / <b>여기까지</b>를 누르는 것이 가장 쉽습니다. 동영상 화면의 재생시간은 구간 길이와 같습니다. 이동과 확대축소는 동영상에 적용되지 않습니다.</div>
         </div>
         <div class="row nav-row">
           <button id="capApplyAll" class="ghost" title="글꼴·크기·색·위치·효과를 모든 화면에 적용">스타일 전체적용</button>
@@ -273,6 +283,7 @@
         <tr><td>Space</td><td>재생 / 일시정지</td><td>← →</td><td>이전 / 다음 화면</td></tr>
         <tr><td>Delete</td><td>선택한 화면 삭제</td><td>Ctrl+S / Ctrl+O</td><td>프로젝트 저장 / 열기</td></tr>
         <tr><td>Ctrl+E</td><td>동영상 만들기</td><td>Home / End</td><td>처음 / 끝으로</td></tr>
+        <tr><td>I / O</td><td>동영상 구간 시작 / 끝을 현재 장면으로</td><td>← → (손잡이)</td><td>구간 0.1초 미세 조절</td></tr>
       </table>
       <h3>스마트폰에서</h3>
       <p>안드로이드 Chrome, 아이폰 Safari(16.4 이상)에서도 같은 주소로 쓸 수 있습니다. 완성된 영상은 <b>공유 · 갤러리에 저장</b> 버튼으로 갤러리나 카카오톡에 바로 보낼 수 있습니다. 브라우저 메뉴의 <b>홈 화면에 추가</b>를 누르면 앱처럼 설치됩니다. 폰에서는 720p, 사진 60장 이하를 권장합니다.</p>

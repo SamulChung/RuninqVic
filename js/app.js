@@ -97,7 +97,24 @@
     c.getContext('2d').drawImage(v, 0, 0, tw, th);
     let audioBuffer = null;
     try { audioBuffer = await RV.audio.ctx.decodeAudioData(await blob.arrayBuffer()); } catch (e) { audioBuffer = null; }
-    return { bitmap: v, video: v, url, width: v.videoWidth, height: v.videoHeight, duration: v.duration, thumb: c.toDataURL('image/jpeg', 0.8), audioBuffer };
+    const asset = { bitmap: v, video: v, url, width: v.videoWidth, height: v.videoHeight, duration: v.duration, thumb: c.toDataURL('image/jpeg', 0.8), audioBuffer, strip: null };
+    makeFilmstrip(asset).then(() => { const s = selectedSlide(); if (s && S.assets.images.get(s.assetId) === asset) syncSlideControls(); });
+    return asset;
+  }
+  /* filmstrip for the trimmer: N frames across the clip, rendered from a private <video> clone */
+  async function makeFilmstrip(asset) {
+    const N = 14, fw = 96, fh = 54;
+    const v = document.createElement('video'); v.muted = true; v.playsInline = true; v.preload = 'auto'; v.src = asset.url;
+    await new Promise((res) => { v.onloadedmetadata = () => res(); v.onerror = () => res(); setTimeout(res, 15000); });
+    if (!v.videoWidth) return;
+    const c = document.createElement('canvas'); c.width = fw * N; c.height = fh; const x = c.getContext('2d');
+    const sc = Math.max(fw / v.videoWidth, fh / v.videoHeight), dw = v.videoWidth * sc, dh = v.videoHeight * sc;
+    for (let i = 0; i < N; i++) {
+      await RV.seekVideo(v, Math.min(asset.duration - 0.05, (i + 0.5) / N * asset.duration));
+      x.drawImage(v, i * fw + (fw - dw) / 2, (fh - dh) / 2, dw, dh);
+    }
+    try { v.removeAttribute('src'); v.load(); } catch (e) { /* ignore */ }
+    asset.strip = c.toDataURL('image/jpeg', 0.7);
   }
   function releaseAsset(id) {
     const a = S.assets.images.get(id);
@@ -195,6 +212,7 @@
     }
     $('#tcCur').textContent = RV.fmtTime(S.time, true);
     const sc = $('#scrub'); if (!sc.matches(':active')) sc.value = S.tl.total ? Math.round(S.time / S.tl.total * 1000) : 0;
+    updateTrimPlayhead();
   }
   function hasVideo() { return S.project.slides.some((s) => s.type === 'video'); }
   function pauseVideos() { for (const a of S.assets.images.values()) if (a.video && !a.video.paused) a.video.pause(); }
@@ -218,13 +236,14 @@
       const el = mix ? RV.audio.ctx.currentTime - S.playStartCtx : (performance.now() - S.playPerf) / 1000;
       S.time = S.playStartT + el;
       if (S.time >= S.tl.total) { S.time = S.tl.total; stopPlayback(false); await drawFrame(); return; }
+      if (S.stopAt != null && S.time >= S.stopAt) { S.time = S.stopAt - 0.02; S.stopAt = null; stopPlayback(false); await drawFrame(); return; }
       await drawFrame(); highlightCurrent();
       if (S.playing) S.raf = requestAnimationFrame(loop);
     };
     S.raf = requestAnimationFrame(loop);
   }
   function stopPlayback(reset) {
-    S.playing = false; cancelAnimationFrame(S.raf); RV.audio.stop(); pauseVideos(); $('#btnPlay').textContent = '▶';
+    S.playing = false; S.stopAt = null; cancelAnimationFrame(S.raf); RV.audio.stop(); pauseVideos(); $('#btnPlay').textContent = '▶';
     if (reset) { S.time = 0; drawFrame(); }
   }
   function togglePlay() { if (S.playing) stopPlayback(false); else play(); }
@@ -344,7 +363,7 @@
       d.dataset.id = s.id; d.draggable = true;
       d.querySelector('.nm').textContent = s.name;
       if (s.type === 'text') d.querySelector('.thumb').textContent = s.caption.text || '텍스트';
-      d.onclick = () => select(s.id, true);
+      d.onclick = () => { select(s.id, true); if (s.type === 'video' && $('.tabs button.active').dataset.tab === 'quick') showTab('caption'); };
       d.ondragstart = (e) => { e.dataTransfer.setData('text/rv-slide', s.id); e.dataTransfer.effectAllowed = 'move'; };
       d.ondragover = (e) => { if (e.dataTransfer.types.includes('text/rv-slide')) { e.preventDefault(); d.classList.add('dragover'); } };
       d.ondragleave = () => d.classList.remove('dragover');
@@ -437,14 +456,7 @@
     const isVid = !!(s && s.type === 'video');
     $('#durationRow').hidden = isVid; $('#videoBox').hidden = !isVid;
     if (isVid) {
-      const src = +s.srcDuration || 0, inPt = Math.max(0, +s.in || 0), outPt = (s.out && s.out > inPt) ? Math.min(s.out, src) : src;
-      ['#vInRange', '#vOutRange'].forEach((sel) => { $(sel).max = src.toFixed(1); });
-      $('#vIn').max = src.toFixed(1); $('#vOut').max = src.toFixed(1);
-      $('#vInRange').value = inPt.toFixed(1); $('#vOutRange').value = outPt.toFixed(1);
-      $('#vIn').value = inPt.toFixed(1); $('#vOut').value = outPt.toFixed(1);
-      $('#vSrcLen').textContent = '(원본 ' + RV.fmtTime(src, true) + ')';
-      $('#vLen').textContent = '구간 ' + (outPt - inPt).toFixed(1) + '초';
-      const sel = $('#vSel'); sel.style.left = (src ? inPt / src * 100 : 0) + '%'; sel.style.width = (src ? (outPt - inPt) / src * 100 : 100) + '%';
+      renderTrimmer(s);
       $('#vVolume').value = s.volume == null ? 1 : s.volume; $('#vVolumeVal').textContent = Math.round((s.volume == null ? 1 : s.volume) * 100) + '%';
       $('#vMute').checked = !!s.muted;
     }
@@ -454,6 +466,107 @@
     mark('#frameGrid', eff('frame'), !!(s && s.frame != null));
     mark('#trGrid', eff('transition'), !!(s && s.transition != null));
     mark('#cineGrid', eff('cinematic'), !!(s && s.cinematic != null));
+  }
+
+  /* ---------------- video trimmer ---------------- */
+  function clipRange(s) {
+    const src = +s.srcDuration || 0, inPt = Math.max(0, +s.in || 0);
+    const outPt = (s.out && s.out > inPt) ? Math.min(s.out, src) : src;
+    return { src, inPt, outPt };
+  }
+  function renderTrimmer(s) {
+    const { src, inPt, outPt } = clipRange(s);
+    const a = S.assets.images.get(s.assetId);
+    const strip = $('#vStrip');
+    if (a && a.strip) { strip.style.backgroundImage = 'url(' + a.strip + ')'; strip.classList.remove('loading'); }
+    else { strip.style.backgroundImage = ''; strip.classList.add('loading'); }
+    const pl = src ? inPt / src * 100 : 0, pr = src ? outPt / src * 100 : 100;
+    $('#vDimL').style.width = pl + '%'; $('#vDimR').style.width = (100 - pr) + '%';
+    $('#vSelBox').style.left = pl + '%'; $('#vSelBox').style.width = (pr - pl) + '%';
+    $('#vHandleL').style.left = pl + '%'; $('#vHandleR').style.left = pr + '%';
+    $('#vLblIn').textContent = inPt.toFixed(1) + 's'; $('#vLblOut').textContent = outPt.toFixed(1) + 's';
+    $('#vIn').value = inPt.toFixed(1); $('#vOut').value = outPt.toFixed(1); $('#vLenIn').value = (outPt - inPt).toFixed(1);
+    $('#vIn').max = src.toFixed(1); $('#vOut').max = src.toFixed(1); $('#vLenIn').max = (src - inPt).toFixed(1);
+    $('#vSrcLen').textContent = '(원본 ' + RV.fmtTime(src, true) + ' · 선택 ' + (outPt - inPt).toFixed(1) + '초)';
+    updateTrimPlayhead(s);
+  }
+  /* white line on the filmstrip = where the preview currently is inside this clip */
+  function updateTrimPlayhead(s) {
+    s = s || selectedSlide(); const ph = $('#vPlayhead');
+    if (!s || s.type !== 'video' || $('#videoBox').hidden) { if (ph) ph.style.display = 'none'; return; }
+    const it = S.tl.byId[s.id]; const { src, inPt } = clipRange(s);
+    if (!it || S.time < it.start || S.time > it.end || !src) { ph.style.display = 'none'; return; }
+    const ct = inPt + (S.time - it.start);
+    ph.style.display = 'block'; ph.style.left = RV.clamp(ct / src * 100, 0, 100) + '%';
+  }
+  /* current preview position expressed in clip time, or null when the preview is elsewhere */
+  function currentClipTime(s) {
+    const it = S.tl.byId[s.id]; if (!it) return null;
+    if (S.time < it.start - 0.001 || S.time > it.end + 0.001) return null;
+    return clipRange(s).inPt + (S.time - it.start);
+  }
+  /* set in/out; light=true while dragging (no strip rebuild / autosave), preview follows the moved edge */
+  function setTrim(inPt, outPt, which, light) {
+    const s = selectedSlide(); if (!s || s.type !== 'video') return;
+    const src = +s.srcDuration || 0;
+    inPt = RV.clamp(+inPt || 0, 0, Math.max(0, src - 0.5));
+    outPt = RV.clamp(+outPt || src, inPt + 0.5, src);
+    s.in = Math.round(inPt * 10) / 10; s.out = outPt >= src - 0.05 ? 0 : Math.round(outPt * 10) / 10;
+    if (S.playing) stopPlayback(false);
+    /* preview time for an edge: 'in' = first fully visible frame, 'out' = last frame before the next transition starts */
+    const edgeTime = (it) => {
+      if (which !== 'out') return it.start + it.trIn + 0.01;
+      const next = S.tl.items[it.index + 1];
+      return Math.max(it.start + it.trIn, it.end - (next ? next.trIn : 0) - 0.05);
+    };
+    if (light) {
+      S.tl = RV.computeTimeline(S.project, { musicLength: RV.audio.musicLength(S.project, S.assets), beats: S.beats });
+      const it = S.tl.byId[s.id];
+      if (it) S.time = edgeTime(it);
+      S.mixDirty = true; drawFrame(); renderTrimmer(s);
+      return;
+    }
+    update(); syncSlideControls();
+    const it = S.tl.byId[s.id];
+    if (it && (which === 'in' || which === 'out')) seek(edgeTime(it));
+  }
+  function bindTrimmer() {
+    const box = $('#trimmer');
+    const posToTime = (clientX) => { const r = box.getBoundingClientRect(); const s = selectedSlide(); const src = s ? +s.srcDuration || 0 : 0; return RV.clamp((clientX - r.left) / r.width, 0, 1) * src; };
+    const drag = (handle, which) => {
+      let active = false, raf = 0, lastX = 0;
+      handle.addEventListener('pointerdown', (e) => { active = true; handle.setPointerCapture(e.pointerId); handle.classList.add('drag'); e.preventDefault(); });
+      handle.addEventListener('pointermove', (e) => {
+        if (!active) return; lastX = e.clientX;
+        if (raf) return;
+        raf = requestAnimationFrame(() => { raf = 0; const s = selectedSlide(); if (!s) return; const { inPt, outPt } = clipRange(s); const t = posToTime(lastX); if (which === 'in') setTrim(t, outPt, 'in', true); else setTrim(inPt, t, 'out', true); });
+      });
+      const end = () => { if (!active) return; active = false; handle.classList.remove('drag'); const s = selectedSlide(); if (s) { const { inPt, outPt } = clipRange(s); setTrim(inPt, outPt, which, false); } };
+      handle.addEventListener('pointerup', end); handle.addEventListener('pointercancel', end);
+      handle.addEventListener('keydown', (e) => { const s = selectedSlide(); if (!s) return; const { inPt, outPt } = clipRange(s); const d = e.key === 'ArrowLeft' ? -0.1 : e.key === 'ArrowRight' ? 0.1 : 0; if (!d) return; e.preventDefault(); if (which === 'in') setTrim(inPt + d, outPt, 'in'); else setTrim(inPt, outPt + d, 'out'); });
+    };
+    drag($('#vHandleL'), 'in'); drag($('#vHandleR'), 'out');
+    /* click on the strip (not on a handle) = move the nearer handle there */
+    $('#vStrip').addEventListener('pointerdown', (e) => { const s = selectedSlide(); if (!s) return; const { inPt, outPt } = clipRange(s); const t = posToTime(e.clientX); if (Math.abs(t - inPt) <= Math.abs(t - outPt)) setTrim(t, outPt, 'in'); else setTrim(inPt, t, 'out'); });
+    const nudge = (which, d) => { const s = selectedSlide(); if (!s) return; const { inPt, outPt } = clipRange(s); if (which === 'in') setTrim(inPt + d, outPt, 'in'); else setTrim(inPt, outPt + d, 'out'); };
+    $('#vInMinus').onclick = () => nudge('in', -0.5); $('#vInPlus').onclick = () => nudge('in', 0.5);
+    $('#vOutMinus').onclick = () => nudge('out', -0.5); $('#vOutPlus').onclick = () => nudge('out', 0.5);
+    $('#vIn').onchange = (e) => { const s = selectedSlide(); if (s) setTrim(e.target.value, clipRange(s).outPt, 'in'); };
+    $('#vOut').onchange = (e) => { const s = selectedSlide(); if (s) setTrim(clipRange(s).inPt, e.target.value, 'out'); };
+    $('#vLenIn').onchange = (e) => { const s = selectedSlide(); if (!s) return; const { inPt } = clipRange(s); setTrim(inPt, inPt + (+e.target.value || 0.5), 'out'); };
+    $$('#videoBox .quick [data-len]').forEach((b) => (b.onclick = () => { const s = selectedSlide(); if (!s) return; const { inPt, src } = clipRange(s); const len = +b.dataset.len; const start = inPt + len <= src ? inPt : Math.max(0, src - len); setTrim(start, start + len, 'out'); }));
+    $('#vReset').onclick = () => { const s = selectedSlide(); if (s) setTrim(0, s.srcDuration, 'in'); };
+    const setFromPreview = (which) => {
+      const s = selectedSlide(); if (!s || s.type !== 'video') return;
+      const ct = currentClipTime(s);
+      if (ct == null) { toast('미리보기를 이 동영상 화면 안의 장면에 맞춘 뒤 눌러주세요.', true); return; }
+      const { inPt, outPt } = clipRange(s);
+      if (which === 'in') { if (ct >= outPt - 0.5) { toast('시작 지점은 끝보다 0.5초 이상 앞이어야 합니다.', true); return; } setTrim(ct, outPt, 'in'); toast('시작 지점: ' + ct.toFixed(1) + '초'); }
+      else { if (ct <= inPt + 0.5) { toast('끝 지점은 시작보다 0.5초 이상 뒤여야 합니다.', true); return; } setTrim(inPt, ct, 'out'); toast('끝 지점: ' + ct.toFixed(1) + '초'); }
+    };
+    $('#vSetIn').onclick = () => setFromPreview('in'); $('#vSetOut').onclick = () => setFromPreview('out');
+    $('#vPlaySeg').onclick = () => { const s = selectedSlide(); if (!s) return; const it = S.tl.byId[s.id]; if (!it) return; S.time = it.start + it.trIn; S.stopAt = it.end; play(); };
+    RV.app.setFromPreview = setFromPreview;
   }
 
   /* ---------------- tiles ---------------- */
@@ -740,21 +853,7 @@
     on('#duckLevel', 'input', (e) => { p().music.duckLevel = +e.target.value; $('#duckLevelVal').textContent = Math.round(p().music.duckLevel * 100) + '%'; S.mixDirty = true; scheduleSave(); });
 
     /* video trim */
-    const setTrim = (inPt, outPt, seekPreview) => {
-      const s = selectedSlide(); if (!s || s.type !== 'video') return;
-      const src = +s.srcDuration || 0;
-      inPt = RV.clamp(+inPt || 0, 0, Math.max(0, src - 0.5));
-      outPt = RV.clamp(+outPt || src, inPt + 0.5, src);
-      s.in = Math.round(inPt * 10) / 10; s.out = outPt >= src - 0.05 ? 0 : Math.round(outPt * 10) / 10;
-      update(); syncSlideControls();
-      const it = S.tl.byId[s.id];
-      if (it && seekPreview === 'in') seek(it.start + it.trIn + 0.01); else if (it && seekPreview === 'out') seek(Math.max(it.start, it.end - 0.05));
-    };
-    on('#vInRange', 'input', (e) => setTrim(e.target.value, $('#vOutRange').value, 'in'));
-    on('#vOutRange', 'input', (e) => setTrim($('#vInRange').value, e.target.value, 'out'));
-    on('#vIn', 'change', (e) => setTrim(e.target.value, $('#vOut').value, 'in'));
-    on('#vOut', 'change', (e) => setTrim($('#vIn').value, e.target.value, 'out'));
-    on('#vReset', 'click', () => { const s = selectedSlide(); if (s) setTrim(0, s.srcDuration, 'in'); });
+    bindTrimmer();
     on('#vVolume', 'input', (e) => { const s = selectedSlide(); if (!s) return; s.volume = +e.target.value; $('#vVolumeVal').textContent = Math.round(s.volume * 100) + '%'; S.mixDirty = true; scheduleSave(); });
     on('#vMute', 'change', (e) => { const s = selectedSlide(); if (!s) return; s.muted = e.target.checked; S.mixDirty = true; scheduleSave(); });
 
@@ -788,6 +887,8 @@
       if (e.key === 'Escape') { $$('.modal.open').forEach((m) => { if (m.id !== 'exportModal' || !exportAbort) m.classList.remove('open'); }); return; }
       if (typing) return;
       if (e.code === 'Space') { e.preventDefault(); togglePlay(); }
+      else if ((e.key === 'i' || e.key === 'I') && selectedSlide() && selectedSlide().type === 'video') RV.app.setFromPreview('in');
+      else if ((e.key === 'o' || e.key === 'O') && selectedSlide() && selectedSlide().type === 'video') RV.app.setFromPreview('out');
       else if (e.key === 'ArrowLeft') moveSelection(-1); else if (e.key === 'ArrowRight') moveSelection(1);
       else if (e.key === 'Delete' || e.key === 'Backspace') deleteSelected();
       else if (e.key === 'Home') seek(0); else if (e.key === 'End') seek(S.tl.total);

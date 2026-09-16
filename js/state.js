@@ -2,7 +2,7 @@
 (function (root) {
   const RV = (root.RV = root.RV || {});
 
-  RV.VERSION = '1.2.0';
+  RV.VERSION = '1.3.0';
 
   RV.ASPECTS = {
     '16:9': { w: 16, h: 9, label: '와이드 (16:9)' },
