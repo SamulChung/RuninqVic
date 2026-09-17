@@ -660,6 +660,18 @@
 
   /* ---------------- export ---------------- */
   let exportAbort = null, exportCaps = null, shareFile = null;
+  const platform = (() => { const ua = navigator.userAgent || ''; const ios = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); const android = /Android/i.test(ua); return { ios, android, mobile: ios || android || isMobile() }; })();
+  /* tell phone users where a downloaded/shared file ends up */
+  function saveHintHtml(kind) {
+    const what = kind === 'video' ? '영상' : kind === 'project' ? '프로젝트 파일' : '음악 파일';
+    if (platform.ios) return '<b>아이폰·아이패드에서 ' + what + ' 저장 위치</b><ol>' +
+      (kind === 'video' ? '<li><b>사진 앱에 저장 · 공유</b> → <b>비디오 저장</b>을 누르면 사진 앱(최근 항목)에 저장됩니다. 카카오톡·메시지로 바로 보낼 수도 있습니다.</li>' : '<li><b>공유</b>를 누르면 카카오톡·메시지·파일 앱으로 보낼 수 있습니다.</li>') +
+      '<li><b>파일 다운로드</b>를 누르면 <b>파일</b> 앱 › 다운로드 폴더(설정에 따라 iCloud Drive 또는 나의 iPhone)에 저장됩니다. Safari 주소창 오른쪽 ↓ 아이콘에서도 바로 열 수 있습니다.</li></ol>';
+    if (platform.android) return '<b>안드로이드에서 ' + what + ' 저장 위치</b><ol>' +
+      (kind === 'video' ? '<li><b>갤러리에 저장 · 공유</b> → <b>갤러리</b>(또는 Google 포토)를 고르면 갤러리에 저장됩니다. 카카오톡을 고르면 바로 보낼 수 있습니다.</li>' : '<li><b>공유</b>를 누르면 카카오톡·드라이브·내 파일로 보낼 수 있습니다.</li>') +
+      '<li><b>파일 다운로드</b>를 누르면 휴대폰의 <b>다운로드</b> 폴더에 저장됩니다. <b>내 파일</b> 앱 › 다운로드, 또는 Chrome 메뉴(⋮) › 다운로드에서 찾을 수 있습니다.</li></ol>';
+    return '<b>파일 다운로드</b>를 누르면 브라우저의 다운로드 폴더에 저장됩니다. Chrome·Edge 오른쪽 위 ↓ 아이콘에서 확인할 수 있습니다.';
+  }
   async function openExport() {
     if (!S.tl.items.length) { toast('먼저 사진을 추가하세요.', true); return; }
     stopPlayback(false);
@@ -668,7 +680,7 @@
     $('#exRes').value = p.export.res; $('#exFps').value = String(p.export.fps); $('#exQuality').value = p.export.quality;
     $('#exPreset').value = 'pc';
     if (isMobile() && !p.export.name) { $('#exPreset').value = 'sns'; $('#exRes').value = '720p'; $('#exFps').value = '30'; $('#exQuality').value = 'medium'; }
-    $('#exShare').hidden = true; shareFile = null;
+    $('#exShare').hidden = true; shareFile = null; $('#exSaveHint').hidden = true;
     $('#exportForm').hidden = false; $('#exportProgress').hidden = true; $('#exportDone').hidden = true;
     $('#exStart').hidden = false; $('#exClose').hidden = true; $('#exCancel').hidden = false; $('#exStart').disabled = false;
     openModal('exportModal');
@@ -727,10 +739,11 @@
         $('#exDoneMsg').textContent = '동영상이 완성되었습니다! (' + secs + '초 소요)';
         try {
           const f = new File([r.blob], fname, { type: r.mime });
-          if (navigator.canShare && navigator.canShare({ files: [f] })) { shareFile = f; $('#exShare').hidden = false; }
+          if (navigator.canShare && navigator.canShare({ files: [f] })) { shareFile = f; $('#exShare').hidden = false; $('#exShare').textContent = platform.ios ? '📤 사진 앱에 저장 · 공유' : '📤 갤러리에 저장 · 공유'; }
         } catch (e) { shareFile = null; }
+        $('#exSaveHint').innerHTML = saveHintHtml('video'); $('#exSaveHint').hidden = false;
       }
-      else { a.hidden = true; $('#exDoneMsg').textContent = fname + ' 파일로 저장했습니다. (' + secs + '초 소요, ' + r.video + (r.audio ? ' + ' + r.audio : '') + ')'; }
+      else { a.hidden = true; $('#exSaveHint').hidden = true; $('#exDoneMsg').textContent = fname + ' 파일로 저장했습니다. (' + secs + '초 소요, ' + r.video + (r.audio ? ' + ' + r.audio : '') + ')'; }
       toast('동영상 만들기 완료');
     } catch (e) {
       console.error(e);
@@ -793,7 +806,7 @@
       $('#mgTitle').value = 'AI 작곡 - ' + title;
       $('#mgResultInfo').textContent = RV.musicgen.providers[provider].label + ' · ' + res.meta.seconds + '초 만에 완성 · ' + (res.blob.size / 1048576).toFixed(1) + ' MB. 들어보고 마음에 들면 배경음악으로 넣으세요.' + (res.meta.madeLyrics ? '\n\nAI가 지은 가사:\n' + res.meta.madeLyrics : '');
       $('#mgResultInfo').style.whiteSpace = 'pre-wrap';
-      const dl = $('#mgDownload'); dl.href = mgUrl; dl.download = $('#mgTitle').value + '.' + res.ext;
+      const dl = $('#mgDownload'); dl.href = mgUrl; dl.download = $('#mgTitle').value + '.' + res.ext; dl.title = platform.mobile ? (platform.ios ? '파일 앱 › 다운로드 폴더에 저장' : '다운로드 폴더에 저장') : '';
       mgShow('result'); $('#mgAudio').play().catch(() => {});
     } catch (e) {
       console.error(e); mgShow('form');
@@ -822,6 +835,7 @@
       catch (e) { if (e.name === 'AbortError') return; }
     }
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = fname; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    toast(platform.ios ? '파일 앱 › 다운로드 폴더에 ' + fname + ' 을(를) 저장했습니다.' : '다운로드 폴더에 ' + fname + ' 을(를) 저장했습니다.');
   }
   async function openProjectFile(file) {
     try {
@@ -956,6 +970,7 @@
     window.addEventListener('appinstalled', () => { $('#btnInstall').hidden = true; toast('홈 화면에 추가되었습니다.'); });
     on('#exCancel', 'click', () => { if (exportAbort) exportAbort.abort(); else closeModal('exportModal'); });
     on('#exClose', 'click', () => closeModal('exportModal'));
+    on('#exDownload', 'click', () => { if (platform.mobile) toast(platform.ios ? '파일 앱 › 다운로드 폴더에 저장됩니다.' : '다운로드 폴더에 저장됩니다. (내 파일 앱 › 다운로드)'); });
 
     /* keyboard */
     window.addEventListener('keydown', (e) => {
@@ -1002,5 +1017,5 @@
   window.addEventListener('DOMContentLoaded', init);
 
   /* debug/test hooks */
-  RV.app = { S, addPhotos, addMusic, update, select, play, stopPlayback, seek, openExport, startExport, exportSettings, setProject, addTextSlide };
+  RV.app = { S, addPhotos, addMusic, update, select, play, stopPlayback, seek, openExport, startExport, exportSettings, setProject, addTextSlide, platform, saveHintHtml };
 })();
