@@ -73,8 +73,9 @@
 
       <div class="tab-page active" data-page="quick">
         <div class="step">
-          <div class="step-h"><span class="num">1</span>사진과 동영상을 추가해보세요.<button id="btnAddPhotos" class="step-btn">📷 사진·동영상 추가</button></div>
-          <div class="hint">폴더에서 여러 개를 끌어다 놓아도 됩니다. 사진 JPG · PNG · WEBP, 동영상 MP4 · WEBM · MOV. 동영상은 자막 탭에서 구간을 잘라 쓸 수 있습니다.</div>
+          <div class="step-h"><span class="num">1</span>사진과 동영상을 추가해보세요.<button id="btnAddPhotos" class="step-btn desktop-only">📷 사진·동영상 추가</button><span class="step-btns mobile-only"><button id="btnAddPhotosOnly" class="step-btn">📷 사진</button><button id="btnAddVideosOnly" class="step-btn">🎬 동영상</button></span></div>
+          <div class="hint desktop-only">폴더에서 여러 개를 끌어다 놓아도 됩니다. 사진 JPG · PNG · WEBP, 동영상 MP4 · WEBM · MOV. 동영상은 자막 탭에서 구간을 잘라 쓸 수 있습니다.</div>
+          <div class="hint mobile-only"><b>여러 장 한 번에:</b> 사진 선택 화면에서 사진을 차례로 눌러 여러 장을 고른 뒤 완료(추가)를 누르세요. 갤러리 앱이 열리면 사진을 <b>길게 눌러</b> 선택을 시작합니다. 동영상은 자막 탭에서 구간을 잘라 쓸 수 있습니다.</div>
         </div>
         <div class="step">
           <div class="step-h"><span class="num">2</span>배경음악을 골라보세요. <span class="muted" id="musicTotal">(00:00)</span>
@@ -324,7 +325,7 @@
     <div class="modal-body help">
       <h3>1. 간편만들기</h3>
       <ol>
-        <li><b>사진·동영상 추가</b>로 사진이나 짧은 동영상을 넣습니다. 폴더에서 화면으로 끌어다 놓아도 됩니다. 동영상은 자막 탭에서 시작·끝 구간을 잘라 길이를 정합니다.</li>
+        <li><b>사진·동영상 추가</b>로 사진이나 짧은 동영상을 넣습니다. 폴더에서 화면으로 끌어다 놓아도 됩니다. 스마트폰에서는 [사진]과 [동영상] 버튼이 따로 있으며, 사진 선택 화면에서 여러 장을 차례로 눌러 한 번에 넣을 수 있습니다. 동영상은 자막 탭에서 시작·끝 구간을 잘라 길이를 정합니다.</li>
         <li><b>배경음악</b>을 넣습니다. 여러 곡을 넣으면 순서대로 이어집니다. 음악 파일이 없으면 <b>AI</b> 버튼에 가사와 분위기를 적어 새 곡을 만들 수 있습니다(Mureka·ElevenLabs 등 작곡 서비스의 API 키 필요).</li>
         <li><b>재생시간</b>을 정합니다. <i>음악 재생시간에 균등하게 맞춤</i>을 켜면 음악 길이에 맞춰 사진 시간을 자동 배분하고, <i>비트에 맞춰</i>를 켜면 박자에 맞춰 장면이 바뀝니다.</li>
         <li><b>오프닝·엔딩</b> 제목을 확인합니다.</li>
@@ -356,6 +357,8 @@
 </div>
 
 <input type="file" id="filePhotos" multiple accept="image/*,video/*,.mp4,.webm,.mov,.m4v" hidden>
+<input type="file" id="filePhotosOnly" multiple accept="image/*" hidden>
+<input type="file" id="fileVideosOnly" multiple accept="video/*,.mp4,.webm,.mov,.m4v" hidden>
 <input type="file" id="fileMusic" multiple accept="audio/*,.mp3,.m4a,.wav,.ogg,.aac,.flac" hidden>
 <input type="file" id="fileProj" accept=".rvproj,.json" hidden>
 <div id="toast"></div>

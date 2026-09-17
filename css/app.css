@@ -202,6 +202,7 @@ body.dragging .drop-overlay { display: grid; }
 /* ---------- mobile (phones & small tablets) ---------- */
 button .ico { display: none; }
 .mobile-only { display: none; }
+.desktop-only { }
 @media (max-width: 900px), (pointer: coarse) and (max-width: 1100px) {
   html, body { height: 100dvh; }
   body { grid-template-rows: 48px auto auto minmax(0, 1fr); grid-template-columns: minmax(0, 1fr); font-size: 14px; padding-bottom: env(safe-area-inset-bottom); overflow-x: hidden; }
@@ -235,6 +236,9 @@ button .ico { display: none; }
   .stage-opts { padding: 6px 8px; gap: 6px 12px; font-size: 12px; display: none; }
   body.show-opts .stage-opts { display: flex; }
   .mobile-only { display: inline-block; }
+  .desktop-only { display: none !important; }
+  .step-btns.mobile-only { display: inline-flex; }
+  .hint.mobile-only { display: block; }
   #btnStageOpts.on { background: var(--accent); border-color: var(--accent); color: #fff; }
   .tl-title .muted, .tl-actions #sortSel { display: none; }
   .stage-opts select { padding: 5px 6px; }

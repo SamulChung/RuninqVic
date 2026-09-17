@@ -864,6 +864,9 @@
 
     /* files */
     on('#btnAddPhotos', 'click', () => $('#filePhotos').click()); on('#btnAddPhotos2', 'click', () => $('#filePhotos').click());
+    on('#btnAddPhotosOnly', 'click', () => $('#filePhotosOnly').click()); on('#btnAddVideosOnly', 'click', () => $('#fileVideosOnly').click());
+    on('#filePhotosOnly', 'change', (e) => { addPhotos(e.target.files); e.target.value = ''; });
+    on('#fileVideosOnly', 'change', (e) => { addPhotos(e.target.files); e.target.value = ''; });
     on('#btnAddMusic', 'click', () => $('#fileMusic').click()); on('#btnAddMusic2', 'click', () => $('#fileMusic').click());
     on('#filePhotos', 'change', (e) => { addPhotos(e.target.files); e.target.value = ''; });
     on('#fileMusic', 'change', (e) => { addMusic(e.target.files); e.target.value = ''; });
