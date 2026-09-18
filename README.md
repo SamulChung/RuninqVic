@@ -54,7 +54,7 @@
 | `LECTURE_MAX_SECONDS` | (선택, 기본 120) 운영자 키로 만드는 곡의 최대 길이 |
 | `LECTURE_RATE_PER_10MIN` | (선택, 기본: 강의 코드 사용 시 60 · 공개 모드 6) 같은 IP에서 10분 동안 만들 수 있는 곡 수. 별도로 브라우저당 10분 5곡, 잘못된 코드 10분 40회 제한 |
 
-사용량 화면은 ElevenLabs의 `GET /v1/user/subscription`, `GET /v1/usage/character-stats`를 서버에서 호출해 보여 줍니다(키에 사용량 조회 권한 필요). 강의가 끝나면 도구의 [강의 종료]로 키를 내리세요(키와 `LECTURE_OPEN`만 지우고 코드는 유지). 도구는 설정을 바꾼 뒤 `vercel redeploy runinqvic.vercel.app --target production`으로 서비스 중인 버전을 다시 배포하므로 로컬 폴더의 파일은 올라가지 않습니다.
+사용량 화면은 도움말 창 맨 아래의 [📊 사용량(운영자)] 버튼 또는 `https://runinqvic.vercel.app/#usage` 주소로 엽니다. ElevenLabs의 `GET /v1/user/subscription`, `GET /v1/usage/character-stats`를 서버에서 호출해 보여 줍니다(키에 사용량 조회 권한 필요). 강의가 끝나면 도구의 [강의 종료]로 키를 내리세요(키와 `LECTURE_OPEN`만 지우고 코드는 유지). 도구는 설정을 바꾼 뒤 `vercel redeploy runinqvic.vercel.app --target production`으로 서비스 중인 버전을 다시 배포하므로 로컬 폴더의 파일은 올라가지 않습니다.
 
 서버 키로는 `POST /v1/music/plan`, `POST /v1/music` 두 호출만 중계하며(JSON·동일 출처 요청만), 곡 길이는 서버에서 강제로 줄입니다. 운영자 키에서 난 오류(크레딧 부족 등)는 내용을 숨기고 "강사에게 알려 주세요"로만 안내합니다.
 

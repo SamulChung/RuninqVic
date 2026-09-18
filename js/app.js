@@ -1072,6 +1072,9 @@
 
     /* operator usage */
     on('#btnUsage', 'click', openUsage); on('#usLoad', 'click', loadUsage);
+    /* bookmarkable shortcut for the operator: https://.../#usage */
+    const usageByHash = () => { if (location.hash === '#usage') openUsage(); };
+    window.addEventListener('hashchange', usageByHash); setTimeout(usageByHash, 0);
     on('#usAdmin', 'keydown', (e) => { if (e.key === 'Enter') loadUsage(); });
 
     /* AI music */
