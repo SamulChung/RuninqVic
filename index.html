@@ -18,13 +18,14 @@
 </head>
 <body>
 <header class="topbar">
-  <div class="brand"><span class="logo">▶</span><span class="name">RuninqVic</span><span class="ver">v1.4</span><a class="maker-logo" href="https://www.tenai.kr" target="_blank" rel="noopener" title="제작: (주)텐에이아이 · www.tenai.kr"><img src="assets/tenai-logo-dark.png" alt="TenAI"></a></div>
+  <div class="brand"><span class="logo">▶</span><span class="name">RuninqVic</span><span class="ver">v1.5</span><a class="maker-logo" href="https://www.tenai.kr" target="_blank" rel="noopener" title="제작: (주)텐에이아이 · www.tenai.kr"><img src="assets/tenai-logo-dark.png" alt="TenAI"></a></div>
   <input id="projName" class="proj-name" title="프로젝트 이름" spellcheck="false">
   <div class="top-actions">
     <button id="btnNew" title="새 프로젝트 (Ctrl+N)"><span class="ico">🆕</span><span class="txt">새로 만들기</span></button>
     <button id="btnOpen" title="프로젝트 파일 열기 (Ctrl+O)"><span class="ico">📂</span><span class="txt">열기</span></button>
     <button id="btnSave" title="프로젝트 파일로 저장 (Ctrl+S)"><span class="ico">💾</span><span class="txt">저장</span></button>
     <button id="btnHelp" title="도움말 (F1)"><span class="ico">❔</span><span class="txt">도움말</span></button>
+    <button id="btnSend" hidden title="방금 만든 영상을 카카오톡 등으로 보내기"><span class="ico">📤</span><span class="txt">보내기</span></button>
     <button id="btnExport" class="primary" title="동영상 만들기 (Ctrl+E)"><span class="ico">🎬</span><span class="txt">동영상 만들기</span></button>
   </div>
 </header>
@@ -254,7 +255,14 @@
       <div class="done-icon">✅</div>
       <div class="ex-status" id="exDoneMsg"></div>
       <a id="exDownload" class="btn primary" download hidden>파일 다운로드</a>
-      <button id="exShare" class="primary" hidden>📤 공유 · 갤러리에 저장</button>
+      <div class="send-box" id="exSendBox" hidden>
+        <div class="send-h">📤 완성한 영상 보내기</div>
+        <div class="send-btns">
+          <button id="exShare" class="primary">💬 카카오톡 등으로 보내기</button>
+          <a id="exDragFile" class="drag-file" draggable="true" hidden title="이 파일을 카카오톡 PC 채팅창으로 끌어다 놓으세요"><span class="df-ico">🎞</span><span class="df-name" id="exDragName"></span><small>카카오톡 채팅창으로 끌어다 놓기</small></a>
+        </div>
+        <div class="send-hint" id="exSendHint"></div>
+      </div>
       <div class="save-hint" id="exSaveHint" hidden></div>
     </div>
     <div class="modal-f">
@@ -343,6 +351,7 @@
       </table>
       <h3>스마트폰에서</h3>
       <p>안드로이드 Chrome, 아이폰 Safari(16.4 이상)에서도 같은 주소로 쓸 수 있습니다. 브라우저 메뉴의 <b>홈 화면에 추가</b>를 누르면 앱처럼 설치됩니다. 폰에서는 720p, 사진 60장 이하를 권장합니다.</p>
+      <p><b>완성한 영상 보내기</b>: 영상이 완성되면 <b>카카오톡 등으로 보내기</b> 버튼이 나옵니다. 누르면 휴대폰의 공유 창이 열리고, 카카오톡을 고른 뒤 채팅방을 선택하면 바로 전송됩니다(밴드·메시지·메일도 같은 방법). PC에서는 완성 화면의 파일 아이콘을 카카오톡 PC 채팅창으로 끌어다 놓으면 됩니다. 창을 닫은 뒤에도 위쪽 <b>📤 보내기</b> 버튼으로 다시 보낼 수 있습니다.</p>
       <p><b>완성한 영상은 어디에 저장되나요?</b></p>
       <ul>
         <li><b>안드로이드</b>: [갤러리에 저장 · 공유]를 누르고 <b>갤러리</b>(또는 Google 포토)를 고르면 갤러리에 저장됩니다. 카카오톡을 고르면 바로 보낼 수 있습니다. [파일 다운로드]를 누르면 휴대폰의 <b>다운로드</b> 폴더(내 파일 앱 › 다운로드, Chrome 메뉴 › 다운로드)에 저장됩니다.</li>
