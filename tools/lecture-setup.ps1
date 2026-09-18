@@ -2,7 +2,7 @@
 # ElevenLabs 키 / 강의 코드 / 관리자 코드를 창에서 입력받아 Vercel 환경 변수로 등록하고 사이트에 반영합니다.
 # - 입력한 키는 이 PC의 파일이나 기록에 남기지 않고 Vercel 명령의 표준 입력으로만 전달합니다.
 # - 사이트 반영은 "지금 서비스 중인 버전을 다시 배포"하는 방식이라, 이 PC 폴더의 파일을 올리지 않습니다.
-param([switch]$SelfTest, [switch]$DryRun, [switch]$TestRoundTrip)
+param([switch]$SelfTest, [switch]$DryRun, [switch]$TestRoundTrip, [switch]$TestCheck)
 
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
@@ -268,6 +268,15 @@ if ($TestRoundTrip) {
   $r3 = Invoke-Vercel 'env rm RV_TOOL_TEST development -y' $null
   $firstBytes = ([System.Text.Encoding]::UTF8.GetBytes($got) | Select-Object -First 3 | ForEach-Object { $_.ToString('x2') }) -join ''
   Write-Output ('add=' + $r1.Code + ' pull=' + $r2.Code + ' rm=' + $r3.Code + ' match=' + ($got -eq $val) + ' gotLen=' + $got.Length + ' wantLen=' + $val.Length + ' firstBytes=' + $firstBytes + ' vercel=' + [bool]$vercelCmd)
+  $form.Dispose(); exit 0
+}
+if ($TestCheck) {
+  # developer check: the read-only paths against the real CLI (login, env list parsing, live probe, "not registered" detection)
+  $form.CreateControl()
+  $ready = Test-Ready; $names = Get-EnvNames; Write-LiveState (Get-LiveState)
+  $rm = Remove-EnvVar 'RV_TOOL_DOES_NOT_EXIST'
+  Write-Output ('ready=' + $ready + ' names=[' + ($names -join ',') + '] namesIsNull=' + ($null -eq $names) + ' rmMissing=' + $rm)
+  Write-Output $log.Text
   $form.Dispose(); exit 0
 }
 if ($SelfTest) { $form.CreateControl(); Write-Output ('SELFTEST OK controls=' + $form.Controls.Count + ' vercel=' + [bool]$vercelCmd); $form.Dispose(); exit 0 }
