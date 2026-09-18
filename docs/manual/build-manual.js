@@ -77,8 +77,9 @@ function block(b) {
 function buildDocx() {
   const children = [];
   /* cover */
-  children.push(new Paragraph({ spacing: { before: 3200 }, children: [] }));
-  children.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [run('▶ ', { size: 60, color: ORANGE }), run('RuninqVic', { size: 72, bold: true })], spacing: { after: 200 } }));
+  children.push(new Paragraph({ spacing: { before: 2400 }, children: [] }));
+  { const ib = fs.readFileSync(path.join(HERE, '..', '..', 'assets', 'logo.png')); children.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 160 }, children: [new ImageRun({ type: 'png', data: ib, transformation: { width: 88, height: 88 } })] })); }
+  children.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [run('RuninqVic', { size: 72, bold: true })], spacing: { after: 200 } }));
   children.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [run('사용설명서', { size: 48, bold: true, color: ORANGE })], spacing: { after: 300 } }));
   children.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [run(C.subtitle, { size: 28, color: GRAY })], spacing: { after: 2400 } }));
   children.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [run(C.version, { size: 22, color: GRAY })] }));
@@ -139,14 +140,14 @@ function buildHtml() {
   const html = `<!DOCTYPE html>
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>RuninqVic 사용설명서</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23ff6a1f'/%3E%3Cpath d='M24 18l22 14-22 14z' fill='%23fff'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='15' fill='%23CBDCF7'/%3E%3Ccircle cx='32' cy='32' r='17.5' fill='%23000000'/%3E%3Cpath d='M32 22.5 L41.5 38.5 H22.5 Z' fill='%23FFFFFF' stroke='%23FFFFFF' stroke-width='2' stroke-linejoin='round'/%3E%3C/svg%3E">
 <style>
 :root{--accent:#e8562a;--text:#222;--muted:#666;--line:#e5e5e5;--bg:#fff;--tip:#fff4ee}
 @media(prefers-color-scheme:dark){:root{--text:#e8e8ea;--muted:#a0a4ad;--line:#33363d;--bg:#17181b;--tip:#2a2320}}
 *{box-sizing:border-box}body{margin:0;font-family:"Pretendard","맑은 고딕","Malgun Gothic","Segoe UI",sans-serif;color:var(--text);background:var(--bg);line-height:1.7;font-size:15.5px}
 .wrap{max-width:960px;margin:0 auto;padding:24px 20px 80px}
 header.top{display:flex;align-items:center;gap:12px;padding:10px 0 18px;border-bottom:1px solid var(--line);margin-bottom:24px}
-header.top .logo{width:34px;height:34px;border-radius:9px;background:var(--accent);color:#fff;display:grid;place-items:center;font-weight:700}
+header.top .logo{width:34px;height:34px;border-radius:9px;display:block}
 header.top h1{font-size:22px;margin:0}header.top .sub{color:var(--muted);font-size:13px}
 header.top a.maker{margin-left:auto;display:flex;align-items:center;padding:4px 8px;border-radius:8px;background:#fff}header.top a.maker img{height:34px;display:block}header.top a.app{background:var(--accent);color:#fff;text-decoration:none;padding:8px 14px;border-radius:8px;font-weight:700;font-size:14px}
 nav.toc{background:var(--tip);border-left:4px solid var(--accent);padding:14px 18px;border-radius:8px;margin-bottom:28px}
@@ -160,7 +161,7 @@ details{border:1px solid var(--line);border-radius:8px;padding:10px 14px;margin:
 a{color:#1a73e8}footer{margin-top:60px;color:var(--muted);font-size:13px;border-top:1px solid var(--line);padding-top:16px}
 @media print{header.top a.app,nav.toc{display:none}section{break-inside:auto}h2{break-after:avoid}figure{break-inside:avoid}}
 </style></head><body><div class="wrap">
-<header class="top"><div class="logo">▶</div><div><h1>RuninqVic 사용설명서</h1><div class="sub">${esc(C.subtitle)} · ${esc(C.version)} · 제작 <a href="${C.makerUrl}" target="_blank" rel="noopener">${esc(C.maker)}</a></div></div><a class="maker" href="${C.makerUrl}" target="_blank" rel="noopener" title="(주)텐에이아이 홈페이지"><img src="assets/tenai-logo.png" alt="TenAI"></a><a class="app" href="index.html">앱 열기 ›</a></header>
+<header class="top"><img class="logo" src="assets/logo.svg" alt="RuninqVic"><div><h1>RuninqVic 사용설명서</h1><div class="sub">${esc(C.subtitle)} · ${esc(C.version)} · 제작 <a href="${C.makerUrl}" target="_blank" rel="noopener">${esc(C.maker)}</a></div></div><a class="maker" href="${C.makerUrl}" target="_blank" rel="noopener" title="(주)텐에이아이 홈페이지"><img src="assets/tenai-logo.png" alt="TenAI"></a><a class="app" href="index.html">앱 열기 ›</a></header>
 <nav class="toc"><b>목차</b><ul>${toc}</ul></nav>
 ${body}
 <footer>RuninqVic · 제작: <a href="${C.makerUrl}" target="_blank" rel="noopener">${esc(C.maker)} · www.tenai.kr</a> · 소스: <a href="${C.repo}" target="_blank" rel="noopener">${C.repo}</a> · Word 버전: <a href="docs/manual/RuninqVic_사용설명서.docx">RuninqVic_사용설명서.docx</a></footer>

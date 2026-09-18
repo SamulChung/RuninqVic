@@ -163,7 +163,7 @@
     $('#musicTotal').textContent = '(' + RV.fmtTime(ml) + ')';
     $('#musicTotal2').textContent = '총 ' + RV.fmtTime(ml);
     $('#tlEmpty').style.display = p.slides.length ? 'none' : '';
-    $('#welcome').style.display = (p.slides.length || p.opening.enabled || p.ending.enabled) && S.tl.items.length ? 'none' : '';
+    $('#welcome').style.display = p.slides.length ? 'none' : ''; /* show the start screen until the first photo/video is added */
     const info = $('#durationInfo');
     if (!p.slides.length) info.textContent = '사진과 음악을 넣어 멋진 영상을 만들어보세요.';
     else {
