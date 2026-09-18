@@ -147,7 +147,8 @@ module.exports = async function handler(req, res) {
       const admin = env('ADMIN_CODE');
       if (!admin) { res.status(403).json({ error: '관리자 코드(ADMIN_CODE)가 설정되어 있지 않습니다. 강의설정 도구에서 관리자 코드를 넣어 주세요.' }); return; }
       if (tooManyBadTries(ip, false)) { res.status(429).json({ error: '잘못된 코드를 너무 많이 입력했습니다. 10분 뒤에 다시 시도해 주세요.' }); return; }
-      if (!safeEqual(String(req.headers['x-admin-code'] || ''), admin)) { tooManyBadTries(ip, true); res.status(403).json({ error: '관리자 코드가 올바르지 않습니다.' }); return; }
+      const sent = String(req.headers['x-admin-code'] || ''); let decoded = sent; try { decoded = decodeURIComponent(sent); } catch (e) { /* not encoded */ }
+      if (!safeEqual(decoded, admin) && !safeEqual(sent, admin)) { tooManyBadTries(ip, true); res.status(403).json({ error: '관리자 코드가 올바르지 않습니다.' }); return; }
       const key = serverKey();
       if (!key) { res.status(400).json({ error: '서버에 등록된 ElevenLabs 키가 없습니다.' }); return; }
       const summary = await usageSummary(key);

@@ -2,7 +2,7 @@
 # ElevenLabs 키 / 강의 코드 / 관리자 코드를 창에서 입력받아 Vercel 환경 변수로 등록하고 사이트에 반영합니다.
 # - 입력한 키는 이 PC의 파일이나 기록에 남기지 않고 Vercel 명령의 표준 입력으로만 전달합니다.
 # - 사이트 반영은 "지금 서비스 중인 버전을 다시 배포"하는 방식이라, 이 PC 폴더의 파일을 올리지 않습니다.
-param([switch]$SelfTest, [switch]$DryRun, [switch]$TestRoundTrip, [switch]$TestCheck)
+param([switch]$SelfTest, [switch]$DryRun, [switch]$TestRoundTrip, [switch]$TestCheck, [string]$SnapshotTo)
 
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
@@ -72,7 +72,7 @@ function Write-LiveState($live) {
 $form = New-Object System.Windows.Forms.Form
 $form.Text = $appTitle
 $form.StartPosition = 'CenterScreen'
-$form.ClientSize = New-Object System.Drawing.Size(620, 690)
+$form.ClientSize = New-Object System.Drawing.Size(620, 720)
 $form.FormBorderStyle = 'FixedDialog'
 $form.MaximizeBox = $false
 $form.Font = New-Object System.Drawing.Font('맑은 고딕', 9.5)
@@ -115,8 +115,14 @@ $cbOpen.Text = '코드 없이 누구나 쓰게 하기 (공개 모드 · 권장�
 $form.Controls.Add($cbOpen); $y += 32
 
 [void](Add-Label '3. 관리자 코드 (8글자 이상, 선택)' $y $true); $y += 22
-[void](Add-Label '앱의 도움말 > 사용량(운영자) 화면을 열 때 쓰는 비밀 코드입니다. 수강생에게는 알려 주지 마세요.' $y); $y += 22
-$tbAdmin = Add-Box $y $true; $y += 36
+[void](Add-Label '사용량 화면을 열 때 쓰는 비밀 코드입니다(영문·숫자). 수강생에게는 알려 주지 마세요.' $y); $y += 22
+$tbAdmin = Add-Box $y $true; $y += 28
+$cbShowAdmin = New-Object System.Windows.Forms.CheckBox
+$cbShowAdmin.Text = '코드 보기 (가려진 칸은 한/영 상태가 안 보이니, 저장 전에 한 번 확인하세요)'; $cbShowAdmin.Left = 20; $cbShowAdmin.Top = $y; $cbShowAdmin.Width = 560
+$cbShowAdmin.Add_CheckedChanged({ $tbAdmin.UseSystemPasswordChar = -not $cbShowAdmin.Checked })
+$form.Controls.Add($cbShowAdmin); $y += 32
+# hidden fields: keep the keyboard in English mode so nothing unexpected is typed
+$tbKey.ImeMode = 'Disable'; $tbAdmin.ImeMode = 'Disable'
 
 [void](Add-Label '4. 한 곡 최대 길이(초)' $y $true); $y += 24
 $numMax = New-Object System.Windows.Forms.NumericUpDown
@@ -212,6 +218,7 @@ $btnSave.Add_Click({
   if (-not $key -and -not $code -and -not $admin -and -not $cbMax.Checked -and -not $cbOpen.Checked) { [void][System.Windows.Forms.MessageBox]::Show('바꿀 내용을 하나 이상 입력해 주세요.', $appTitle); return }
   if ($key -and ($key.Length -lt 20 -or $key -notmatch '^[\x21-\x7E]+$')) { [void][System.Windows.Forms.MessageBox]::Show('API 키 형식이 올바르지 않습니다. ElevenLabs에서 복사한 키 전체를 붙여넣어 주세요.', $appTitle); return }
   if ($code -and $code.Length -lt 4) { [void][System.Windows.Forms.MessageBox]::Show('강의 코드는 4글자 이상으로 정해 주세요.', $appTitle); return }
+  if ($admin -and $admin -notmatch '^[!-~]+$') { [void][System.Windows.Forms.MessageBox]::Show('관리자 코드는 영문·숫자·기호만 사용해 주세요. (한글이나 빈칸 없이)', $appTitle); return }
   if ($admin -and $admin.Length -lt 8) { [void][System.Windows.Forms.MessageBox]::Show('관리자 코드는 8글자 이상으로 정해 주세요. (다른 사람이 추측하기 어렵게)', $appTitle); return }
   if ($admin -and $code -and $admin -eq $code) { [void][System.Windows.Forms.MessageBox]::Show('관리자 코드는 강의 코드와 다르게 정해 주세요.', $appTitle); return }
   if ($cbOpen.Checked -and $code) { [void][System.Windows.Forms.MessageBox]::Show('강의 코드를 넣었으면 공개 모드 체크는 풀어 주세요.', $appTitle); return }
@@ -239,6 +246,7 @@ $btnSave.Add_Click({
     if (-not $ok) { Log '일부 항목을 등록하지 못했습니다. 위 메시지를 확인해 주세요. (사이트에는 아직 반영하지 않았습니다)'; return }
     if (Publish-Site) {
       $tbKey.Clear(); $cbShow.Checked = $false
+      if ($admin) { Log ("  관리자 코드를 새로 등록했습니다: " + $admin.Substring(0, 2) + ('*' * ($admin.Length - 2)) + " ($($admin.Length)글자). 사용량 화면에는 이 코드를 넣으세요.") }
       if (-not $DryRun) { Write-LiveState (Get-LiveState) }
       Log ''
       Log '끝났습니다. 수강생 안내:'
@@ -296,6 +304,12 @@ if ($TestCheck) {
   Write-Output ('ready=' + $ready + ' names=[' + ($names -join ',') + '] namesIsNull=' + ($null -eq $names) + ' rmMissing=' + $rm)
   Write-Output $log.Text
   $form.Dispose(); exit 0
+}
+if ($SnapshotTo) {
+  # developer check: save a picture of the window
+  $form.Show(); [System.Windows.Forms.Application]::DoEvents()
+  $bmp = New-Object System.Drawing.Bitmap($form.Width, $form.Height); $form.DrawToBitmap($bmp, (New-Object System.Drawing.Rectangle(0, 0, $form.Width, $form.Height)))
+  $bmp.Save($SnapshotTo, [System.Drawing.Imaging.ImageFormat]::Png); $bmp.Dispose(); $form.Close(); exit 0
 }
 if ($SelfTest) { $form.CreateControl(); Write-Output ('SELFTEST OK controls=' + $form.Controls.Count + ' vercel=' + [bool]$vercelCmd); $form.Dispose(); exit 0 }
 [void]$form.ShowDialog()

@@ -207,7 +207,7 @@
     _internals: { parseLyricSections, sectionName },
     /* operator-only: usage summary of the key registered on the server */
     async usage(adminCode) {
-      const r = await fetch('api/music?usage=1', { cache: 'no-store', headers: { 'x-admin-code': adminCode || '' } });
+      const r = await fetch('api/music?usage=1', { cache: 'no-store', headers: { 'x-admin-code': encodeURIComponent(adminCode || '') } });   /* header values must be ASCII: a Korean code would make fetch throw */
       let j = null; try { j = await r.json(); } catch (e) { /* ignore */ }
       if (!r.ok) throw new Error((j && j.error) || ('사용량을 불러오지 못했습니다 (' + r.status + ')'));
       return j;
