@@ -814,7 +814,9 @@
     const serverKey = !!(info.ok && info.providers && info.providers[id]);
     $('#mgProviderNote').textContent = prov.note || '';
     $('#mgKeyRow').hidden = !!prov.noKey || serverKey;
-    $('#mgHint').textContent = prov.noKey ? '연습용 멜로디를 만듭니다. 실제 작곡은 위에서 서비스를 고르세요.'
+    $('.mg-grid').hidden = !!prov.builtin; /* style/lyrics inputs only matter for AI composition */
+    $('#mgStart').textContent = prov.builtin ? '🎵 이 곡 듣고 넣기' : '✨ 만들기';
+    $('#mgHint').textContent = prov.builtin ? '기본으로 들어 있는 곡입니다. [이 곡 듣고 넣기]를 누르면 미리 들어보고 배경음악으로 넣을 수 있습니다. 키나 요금이 필요 없습니다.'
       : serverKey ? '이 사이트에 등록된 작곡 서비스 키를 사용합니다. 별도 키가 필요 없습니다.'
       : '키는 이 PC의 브라우저 안에만 저장되며 작곡 요청에만 사용됩니다. 곡 하나에 보통 30초~2분이 걸리고, 서비스 요금이 발생할 수 있습니다.';
     $('#mgKey').value = RV.musicgen.getKey(id) || '';
@@ -824,8 +826,12 @@
     stopPlayback(false);
     const sel = $('#mgProvider');
     if (!sel.options.length) {
-      RV.musicgen.providerIds().forEach((id) => { const o = document.createElement('option'); o.value = id; o.textContent = RV.musicgen.providers[id].label; sel.appendChild(o); });
-      sel.value = localStorage.getItem('rv.musicgen.provider') || 'mureka';
+      const groups = { ai: document.createElement('optgroup'), builtin: document.createElement('optgroup') };
+      groups.ai.label = 'AI 작곡 (API 키 필요)'; groups.builtin.label = '기본 제공 음악 (바로 사용)';
+      RV.musicgen.providerIds().forEach((id) => { const pv = RV.musicgen.providers[id]; const o = document.createElement('option'); o.value = id; o.textContent = pv.label; (groups[pv.group] || groups.ai).appendChild(o); });
+      sel.appendChild(groups.ai); sel.appendChild(groups.builtin);
+      const saved = localStorage.getItem('rv.musicgen.provider');
+      sel.value = saved && RV.musicgen.providers[saved] ? saved : 'elevenlabs';
       const chips = $('#mgChips');
       RV.musicgen.STYLE_CHIPS.forEach((c) => { const b = document.createElement('button'); b.textContent = c; b.onclick = () => { const ta = $('#mgStyle'); const cur = ta.value.trim(); if (cur.includes(c)) { ta.value = cur.replace(c, '').replace(/,\s*,/g, ',').replace(/^[,\s]+|[,\s]+$/g, ''); b.classList.remove('on'); } else { ta.value = cur ? cur + ', ' + c : c; b.classList.add('on'); } }; chips.appendChild(b); });
     }
@@ -833,11 +839,12 @@
     if ($('#mgLength').value === 'fit' && !S.tl.total) $('#mgLength').value = '120';
     await mgSyncProvider();
     openModal('musicGenModal');
-    $('#mgStyle').focus();
+    if (!$('.mg-grid').hidden) $('#mgStyle').focus();
   }
   async function startMusicGen() {
     const provider = $('#mgProvider').value, style = $('#mgStyle').value.trim(), lyrics = $('#mgLyrics').value.trim(), vocal = $('#mgVocal').value;
-    if (!style && !lyrics) { toast('분위기·스타일이나 가사를 적어 주세요.', true); $('#mgStyle').focus(); return; }
+    const prov = RV.musicgen.providers[provider] || {};
+    if (!prov.builtin && !style && !lyrics) { toast('분위기·스타일이나 가사를 적어 주세요.', true); $('#mgStyle').focus(); return; }
     let lengthSec = $('#mgLength').value === 'fit' ? Math.round(S.tl.total) : +$('#mgLength').value;
     lengthSec = RV.clamp(lengthSec || 120, 10, 300);
     const key = $('#mgKey').value.trim();
@@ -851,8 +858,8 @@
       mgResult = res; if (mgUrl) URL.revokeObjectURL(mgUrl); mgUrl = URL.createObjectURL(res.blob);
       $('#mgAudio').src = mgUrl;
       const title = (style ? style.split(/[,，·]/)[0].trim().slice(0, 24) : '새 곡') + (lyrics && vocal !== 'none' ? '' : ' (연주곡)');
-      $('#mgTitle').value = 'AI 작곡 - ' + title;
-      $('#mgResultInfo').textContent = RV.musicgen.providers[provider].label + ' · ' + res.meta.seconds + '초 만에 완성 · ' + (res.blob.size / 1048576).toFixed(1) + ' MB. 들어보고 마음에 들면 배경음악으로 넣으세요.' + (res.meta.madeLyrics ? '\n\nAI가 지은 가사:\n' + res.meta.madeLyrics : '');
+      $('#mgTitle').value = prov.builtin ? prov.title : 'AI 작곡 - ' + title;
+      $('#mgResultInfo').textContent = (prov.builtin ? '기본 제공 음악 · ' : RV.musicgen.providers[provider].label + ' · ' + res.meta.seconds + '초 만에 완성 · ') + (res.blob.size / 1048576).toFixed(1) + ' MB. 들어보고 마음에 들면 배경음악으로 넣으세요.' + (res.meta.madeLyrics ? '\n\nAI가 지은 가사:\n' + res.meta.madeLyrics : '');
       $('#mgResultInfo').style.whiteSpace = 'pre-wrap';
       const dl = $('#mgDownload'); dl.href = mgUrl; dl.download = $('#mgTitle').value + '.' + res.ext; dl.title = platform.mobile ? (platform.ios ? '파일 앱 › 다운로드 폴더에 저장' : '다운로드 폴더에 저장') : '';
       mgShow('result'); $('#mgAudio').play().catch(() => {});

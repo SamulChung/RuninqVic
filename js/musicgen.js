@@ -56,63 +56,30 @@
     return DEFAULT_SECTION_NAMES[Math.min(i, DEFAULT_SECTION_NAMES.length - 1)];
   }
 
-  const providers = {
-    /* ---- Mureka (https://platform.mureka.ai/docs) ----
-       async task: POST /v1/song/generate (lyrics required) or /v1/instrumental/generate, then poll /v1/song/query/{id}.
-       Korean vocals officially supported. No length parameter: length follows the lyrics. */
-    mureka: {
-      label: 'Mureka (추천 · 한국어 보컬 공식 지원)',
-      keyUrl: 'https://platform.mureka.ai/',
-      note: '가사·스타일 지원, 한국어 보컬 공식 지원, 곡당 약 $0.05~0.15 (선불 충전). 길이는 가사 분량에 따라 정해짐(최대 5분 30초)',
-      envName: 'MUREKA_API_KEY',
-      directCors: true,
+  /* a bundled song presented as a "provider": choosing it just loads the file */
+  function builtinSong(title, url, lengthLabel) {
+    return {
+      label: '🎵 ' + title + ' (' + lengthLabel + ')', title, url, group: 'builtin', builtin: true, noKey: true, directCors: true, keyUrl: '', envName: '',
+      note: '기본 제공 음악 · 키 없이 바로 사용',
       async generate(p, key, o) {
-        const H = { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' };
-        const B = 'https://api.mureka.ai';
-        const wantVocals = p.vocal !== 'none';
-        let lyrics = wantVocals && p.lyrics ? p.lyrics.trim().slice(0, 5000) : '';
-        const stylePrompt = buildPrompt(p).slice(0, 1024);
-        let task, queryPath, madeLyrics = null;
-        if (!wantVocals) {
-          o.onStatus && o.onStatus('Mureka에 연주곡을 요청하는 중…');
-          const r = await callVendor(B + '/v1/instrumental/generate', { method: 'POST', headers: H, body: JSON.stringify({ model: MUREKA_MODEL, prompt: stylePrompt, n: 1 }) }, o);
-          task = await r.json(); queryPath = '/v1/instrumental/query/';
-        } else {
-          if (!lyrics) {
-            o.onStatus && o.onStatus('분위기에 맞는 가사를 짓는 중…');
-            const lr = await callVendor(B + '/v1/lyrics/generate', { method: 'POST', headers: H, body: JSON.stringify({ prompt: '한국어 가사. ' + (p.style || '') + '. 사진 슬라이드쇼 영상의 배경음악용. 2절과 후렴으로 구성.' }) }, o);
-            const lj = await lr.json(); lyrics = String(lj.lyrics || '').slice(0, 5000); madeLyrics = lyrics;
-            if (!lyrics) throw new Error('가사를 만들지 못했습니다. 가사를 직접 입력해 주세요.');
-          }
-          o.onStatus && o.onStatus('Mureka에 작곡을 요청하는 중…');
-          const body = { lyrics, model: MUREKA_MODEL, prompt: stylePrompt, n: 1 };
-          if (p.vocal === 'female' || p.vocal === 'male') body.gender = p.vocal;
-          const r = await callVendor(B + '/v1/song/generate', { method: 'POST', headers: H, body: JSON.stringify(body) }, o);
-          task = await r.json(); queryPath = '/v1/song/query/';
-        }
-        if (!task || !task.id) throw new Error('Mureka 작업을 시작하지 못했습니다: ' + JSON.stringify(task).slice(0, 200));
-        /* poll */
-        const t0 = performance.now(); let st = task;
-        while (!['succeeded', 'failed', 'timeouted', 'cancelled'].includes(st.status)) {
-          if (performance.now() - t0 > 8 * 60 * 1000) throw new Error('작곡이 8분 안에 끝나지 않았습니다. 잠시 후 다시 시도해 주세요.');
-          await sleep(4000, o.signal);
-          const qr = await callVendor(B + queryPath + encodeURIComponent(task.id), { method: 'GET', headers: { Authorization: 'Bearer ' + key } }, o);
-          st = await qr.json();
-          o.onStatus && o.onStatus('Mureka가 작곡하는 중… (' + ({ preparing: '준비', queued: '대기', running: '생성', streaming: '생성' }[st.status] || st.status) + ', ' + Math.round((performance.now() - t0) / 1000) + '초)');
-        }
-        if (st.status !== 'succeeded') throw new Error('Mureka 작곡 실패: ' + (st.failed_reason || st.status));
-        const song = st.choices && st.choices[0]; if (!song || !song.url) throw new Error('Mureka 응답에 곡이 없습니다.');
-        o.onStatus && o.onStatus('완성된 곡을 내려받는 중…');
-        const blob = await fetchAudio(song.url, o);
-        return { blob, mime: blob.type || 'audio/mpeg', ext: /\.wav($|\?)/i.test(song.url) ? 'wav' : 'mp3', lyrics: madeLyrics, durationMs: song.duration };
+        o.onStatus && o.onStatus('곡을 불러오는 중…');
+        let r;
+        try { r = await fetch(url, { signal: o.signal }); }
+        catch (e) { if (e.name === 'AbortError') throw e; throw new Error(/^file:/.test(location.protocol) ? '이 실행 방식에서는 기본 제공 곡을 불러올 수 없습니다. RuninqVic.bat으로 실행하거나 웹 버전(runinqvic.vercel.app)을 이용해 주세요.' : '곡 파일을 불러오지 못했습니다. 인터넷 연결을 확인해 주세요.'); }
+        if (!r.ok) throw new Error('곡 파일을 불러오지 못했습니다 (' + r.status + ').');
+        const blob = await r.blob();
+        return { blob: blob.type && blob.type.startsWith('audio') ? blob : new Blob([blob], { type: 'audio/mpeg' }), mime: 'audio/mpeg', ext: 'mp3' };
       },
-    },
+    };
+  }
+
+  const providers = {
     /* ---- ElevenLabs Music (https://elevenlabs.io/docs/api-reference/music) ----
        prompt XOR composition_plan. Styles must be English, lyrics can be any language.
        With user lyrics: ask /v1/music/plan (free) for English styles from the Korean description,
        then compose with a chunk plan that carries the user's exact lyrics. */
     elevenlabs: {
-      label: 'ElevenLabs (Eleven Music · 개인 이용)',
+      label: 'ElevenLabs로 새 곡 만들기 (AI 작곡)', group: 'ai',
       keyUrl: 'https://elevenlabs.io/app/settings/api-keys',
       note: '가사·스타일 지원, 길이를 정확히 지정, 59개 언어 보컬(한국어는 미공식). 요금: 분당 크레딧. 셀프서비스 요금제는 개인 용도 한정',
       envName: 'ELEVENLABS_API_KEY',
@@ -156,49 +123,11 @@
         return { blob: blob.type && blob.type.startsWith('audio') ? blob : new Blob([blob], { type: 'audio/mpeg' }), mime: 'audio/mpeg', ext: 'mp3' };
       },
     },
-    /* ---- MiniMax Music (https://platform.minimax.io/docs/api-reference/music-generation) ----
-       synchronous JSON, audio as hex; HTTP 200 even on errors -> check base_resp.status_code */
-    minimax: {
-      label: 'MiniMax Music (2026년 8월 이전 가입 계정만)',
-      keyUrl: 'https://platform.minimax.io/user-center/basic-information/interface-key',
-      note: '가사·스타일 지원, 최대 5분, 길이는 가사 분량에 따라 정해짐. 2026년 8월 20일 이후 신규 가입 계정은 사용할 수 없습니다',
-      envName: 'MINIMAX_API_KEY',
-      directCors: true,
-      async generate(p, key, o) {
-        const wantVocals = p.vocal !== 'none';
-        const userLyrics = wantVocals && p.lyrics && p.lyrics.trim();
-        const body = { model: MINIMAX_MODEL, prompt: buildPrompt(p).slice(0, 2000), output_format: 'hex', audio_setting: { sample_rate: 44100, bitrate: 128000, format: 'mp3' } };
-        if (!wantVocals) { body.is_instrumental = true; }
-        else if (userLyrics) { body.lyrics = userLyrics.slice(0, 3500); }
-        else { body.lyrics_optimizer = true; body.lyrics = ''; }
-        o.onStatus && o.onStatus('MiniMax가 작곡하는 중… (보통 30초~2분)');
-        const r = await callVendor(MINIMAX_URL, { method: 'POST', headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' }, body: JSON.stringify(body) }, o);
-        const j = await r.json();
-        const code = j.base_resp && j.base_resp.status_code;
-        if (code) {
-          const map = { 1002: '요청이 너무 많습니다. 잠시 후 다시 시도하세요.', 1004: 'API 키가 올바르지 않습니다.', 2049: 'API 키가 올바르지 않습니다.', 1008: '서비스 잔액(크레딧)이 부족합니다.', 1026: '가사나 설명에 허용되지 않는 내용이 있어 거부되었습니다.', 2013: '요청 값이 잘못되었습니다.' };
-          throw new Error('MiniMax: ' + (map[code] || j.base_resp.status_msg || code));
-        }
-        const hex = j.data && j.data.audio; if (!hex) throw new Error('MiniMax 응답에 오디오가 없습니다.');
-        const bytes = new Uint8Array(hex.length >> 1); for (let i = 0; i < bytes.length; i++) bytes[i] = parseInt(hex.substr(i * 2, 2), 16);
-        return { blob: new Blob([bytes], { type: 'audio/mpeg' }), mime: 'audio/mpeg', ext: 'mp3' };
-      },
-    },
-    /* ---- demo: no network, synthesizes a simple tune so the flow can be tried without a key ---- */
-    demo: {
-      label: '데모 (연습용 · 인터넷 불필요)',
-      keyUrl: '', note: '실제 작곡이 아닌 연습용 멜로디를 만듭니다', envName: '', directCors: true, noKey: true,
-      async generate(p, key, o) {
-        o.onStatus && o.onStatus('연습용 멜로디 생성 중…');
-        const buf = RV.audio.makeTone(Math.min(p.lengthSec, 180), p.style && /신나|댄스|팝|트로트/.test(p.style) ? 128 : 84);
-        await new Promise((r) => setTimeout(r, 800));
-        return { blob: wavBlob(buf), mime: 'audio/wav', ext: 'wav' };
-      },
-    },
+    /* ---- built-in songs: bundled with the app, no key, no network service ---- */
+    'song-spring-1': builtinSong('봄의 첫빛 (1)', 'assets/music/spring-first-light-1.mp3', '2:19'),
+    'song-spring-2': builtinSong('봄의 첫빛 (2)', 'assets/music/spring-first-light-2.mp3', '2:36'),
+    'song-rosemarine': builtinSong('Rosemarine', 'assets/music/rosemarine.mp3', '1:42'),
   };
-  const MINIMAX_URL = 'https://api.minimax.io/v1/music_generation';
-  const MINIMAX_MODEL = 'music-3.0';
-  const MUREKA_MODEL = 'mureka-9'; /* pinned: 'auto' may resolve to the 3x pricier 9.5 */
 
   function sleep(ms, signal) {
     return new Promise((res, rej) => { const t = setTimeout(res, ms); if (signal) signal.addEventListener('abort', () => { clearTimeout(t); rej(new DOMException('취소됨', 'AbortError')); }, { once: true }); });

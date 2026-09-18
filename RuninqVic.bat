@@ -13,11 +13,11 @@ set "CHROME=%ProgramFiles%\Google\Chrome\Application\chrome.exe"
 if not exist "%CHROME%" set "CHROME=%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe"
 
 if exist "%EDGE%" (
-  start "" "%EDGE%" --app="%URL%" --user-data-dir="%PROFILE%" --window-size=1600,980 --no-first-run --no-default-browser-check
+  start "" "%EDGE%" --app="%URL%" --user-data-dir="%PROFILE%" --window-size=1600,980 --no-first-run --no-default-browser-check --allow-file-access-from-files
   goto :eof
 )
 if exist "%CHROME%" (
-  start "" "%CHROME%" --app="%URL%" --user-data-dir="%PROFILE%" --window-size=1600,980 --no-first-run --no-default-browser-check
+  start "" "%CHROME%" --app="%URL%" --user-data-dir="%PROFILE%" --window-size=1600,980 --no-first-run --no-default-browser-check --allow-file-access-from-files
   goto :eof
 )
 echo Microsoft Edge 또는 Google Chrome 이 필요합니다. index.html 을 브라우저로 열어 주세요.

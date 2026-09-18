@@ -17,5 +17,6 @@ assert.deepStrictEqual(M._internals.parseLyricSections('')[0].lines, []);
 const pr = M.buildPrompt({ style: '잔잔한 피아노', vocal: 'female', lyrics: 'x' });
 assert.ok(pr.startsWith('잔잔한 피아노, female vocals'));
 assert.ok(M.buildPrompt({ style: 's', vocal: 'none' }).includes('instrumental'));
-assert.ok(M.providerIds().join() === 'mureka,elevenlabs,minimax,demo', M.providerIds().join());
+assert.ok(M.providerIds().join() === 'elevenlabs,song-spring-1,song-spring-2,song-rosemarine', M.providerIds().join());
+assert.ok(M.providers['song-rosemarine'].builtin && M.providers['song-rosemarine'].noKey);
 console.log('musicgen tests passed');

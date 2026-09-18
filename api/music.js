@@ -1,19 +1,17 @@
 /* RuninqVic - Vercel serverless proxy for AI music generation (Node runtime, Fluid compute).
-   GET  /api/music?probe=1  -> { ok: true, providers: { elevenlabs: bool, minimax: bool, mureka: bool }, maxSeconds }
+   GET  /api/music?probe=1  -> { ok: true, providers: { elevenlabs: bool }, maxSeconds }
    POST /api/music          -> forwards one vendor request and STREAMS the vendor response back
                                (streaming avoids Vercel's 4.5 MB response limit for multi-MB songs).
    Body: { url, method, headers, body, provider, useServerKey }
    Only allow-listed vendor hosts are proxied. Server keys come from env:
-   ELEVENLABS_API_KEY, MINIMAX_API_KEY, MUREKA_API_KEY (set in Vercel > Settings > Environment Variables). */
+   ELEVENLABS_API_KEY (set in Vercel > Settings > Environment Variables). */
 const { Readable } = require('stream');
 
-const ALLOWED_HOSTS = ['api.elevenlabs.io', 'api.minimax.io', 'api.minimaxi.com', 'api.minimax.cn', 'api.mureka.ai'];
+const ALLOWED_HOSTS = ['api.elevenlabs.io'];
 /* finished-song downloads (GET only, never with a server key): vendor CDNs */
-const DOWNLOAD_SUFFIXES = ['mureka.ai', 'skywork.ai', 'cloudfront.net', 'amazonaws.com', 'aliyuncs.com', 'myqcloud.com', 'googleapis.com', 'elevenlabs.io'];
+const DOWNLOAD_SUFFIXES = ['elevenlabs.io'];
 const SERVER_KEYS = {
   elevenlabs: { env: 'ELEVENLABS_API_KEY', header: 'xi-api-key', format: (k) => k },
-  minimax: { env: 'MINIMAX_API_KEY', header: 'authorization', format: (k) => 'Bearer ' + k },
-  mureka: { env: 'MUREKA_API_KEY', header: 'authorization', format: (k) => 'Bearer ' + k },
 };
 const MAX_SECONDS = 300;
 

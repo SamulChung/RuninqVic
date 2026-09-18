@@ -82,7 +82,7 @@
           <div class="step-h"><span class="num">2</span>배경음악을 골라보세요. <span class="muted" id="musicTotal">(00:00)</span>
             <span class="step-btns"><button id="btnAddMusic" class="mini" title="음악 파일 추가">＋ 곡 추가</button><button id="btnRemoveMusic" class="mini" title="선택한 음악 제거">－</button><button id="btnGenMusic" class="mini gen" title="가사와 스타일로 AI 음악 만들기">AI</button></span></div>
           <ul class="music-list" id="musicList"><li class="empty">여기에 음악을 넣어보세요. (MP3 · M4A · WAV · OGG)</li></ul>
-          <div class="hint">음악 파일이 없으면 <b>AI</b> 버튼으로 가사와 분위기를 적어 새 곡을 만들 수 있습니다.</div>
+          <div class="hint">음악 파일이 없으면 <b>AI</b> 버튼에서 <b>기본 제공 음악 3곡</b>을 바로 쓰거나, 가사와 분위기를 적어 새 곡을 만들 수 있습니다.</div>
         </div>
         <div class="step">
           <div class="step-h"><span class="num">3</span>사진 1장당 재생시간을 설정해보세요.</div>
@@ -276,8 +276,20 @@
 <!-- AI music modal -->
 <div class="modal" id="musicGenModal">
   <div class="modal-box wide">
-    <div class="modal-h">✨ AI 음악 만들기 <span class="muted mg-sub">가사와 분위기를 적으면 배경음악을 새로 만들어 줍니다</span><button class="close" data-close="musicGenModal">✕</button></div>
+    <div class="modal-h">✨ AI 음악 · 기본 제공 음악 <span class="muted mg-sub">기본 제공 곡을 고르거나, 가사와 분위기를 적어 새 곡을 만듭니다</span><button class="close" data-close="musicGenModal">✕</button></div>
     <div class="modal-body" id="mgForm">
+      <div class="mg-provider top">
+        <div class="row">
+          <label>음악 선택 <select id="mgProvider"></select></label>
+          <span class="muted" id="mgProviderNote"></span>
+        </div>
+        <div class="row" id="mgKeyRow">
+          <label class="wide">API 키 <input type="password" id="mgKey" placeholder="서비스에서 발급받은 API 키를 붙여넣으세요" autocomplete="off"></label>
+          <label class="chk"><input type="checkbox" id="mgKeySave" checked> 이 브라우저에 저장</label>
+          <a id="mgKeyLink" class="btn-link" href="#" target="_blank" rel="noopener">키 발급 안내 ›</a>
+        </div>
+        <div class="hint" id="mgHint">키는 이 PC의 브라우저 안에만 저장되며 작곡 요청에만 사용됩니다. 곡 하나에 보통 30초~2분이 걸리고, 서비스 요금이 발생할 수 있습니다.</div>
+      </div>
       <div class="mg-grid">
         <div class="mg-col">
           <label class="mg-label">1. 분위기 · 스타일</label>
@@ -293,18 +305,6 @@
           <textarea id="mgLyrics" rows="9" placeholder="[verse]&#10;파란 바다 위로 우리 웃음이 번져&#10;오래도록 기억할 여름의 하루&#10;&#10;[chorus]&#10;함께라서 더 빛나는 시간&#10;…&#10;&#10;※ [verse] [chorus] [bridge] 표시는 넣어도 되고 안 넣어도 됩니다."></textarea>
           <div class="row small"><button id="mgLyricsHelp" class="mini-text ghost">가사 예시 넣기</button><span class="muted" id="mgLyricsCount">0자</span></div>
         </div>
-      </div>
-      <div class="mg-provider">
-        <div class="row">
-          <label>작곡 서비스 <select id="mgProvider"></select></label>
-          <span class="muted" id="mgProviderNote"></span>
-        </div>
-        <div class="row" id="mgKeyRow">
-          <label class="wide">API 키 <input type="password" id="mgKey" placeholder="서비스에서 발급받은 API 키를 붙여넣으세요" autocomplete="off"></label>
-          <label class="chk"><input type="checkbox" id="mgKeySave" checked> 이 브라우저에 저장</label>
-          <a id="mgKeyLink" class="btn-link" href="#" target="_blank" rel="noopener">키 발급 안내 ›</a>
-        </div>
-        <div class="hint" id="mgHint">키는 이 PC의 브라우저 안에만 저장되며 작곡 요청에만 사용됩니다. 곡 하나에 보통 30초~2분이 걸리고, 서비스 요금이 발생할 수 있습니다.</div>
       </div>
     </div>
     <div class="modal-body" id="mgProgress" hidden>
@@ -334,7 +334,7 @@
       <h3>1. 간편만들기</h3>
       <ol>
         <li><b>사진·동영상 추가</b>로 사진이나 짧은 동영상을 넣습니다. 폴더에서 화면으로 끌어다 놓아도 됩니다. 스마트폰에서는 [사진]과 [동영상] 버튼이 따로 있으며, 사진 선택 화면에서 여러 장을 차례로 눌러 한 번에 넣을 수 있습니다. 동영상은 자막 탭에서 시작·끝 구간을 잘라 길이를 정합니다.</li>
-        <li><b>배경음악</b>을 넣습니다. 여러 곡을 넣으면 순서대로 이어집니다. 음악 파일이 없으면 <b>AI</b> 버튼에 가사와 분위기를 적어 새 곡을 만들 수 있습니다(Mureka·ElevenLabs 등 작곡 서비스의 API 키 필요).</li>
+        <li><b>배경음악</b>을 넣습니다. 여러 곡을 넣으면 순서대로 이어집니다. 음악 파일이 없으면 <b>AI</b> 버튼에서 기본 제공 음악 3곡(봄의 첫빛 2곡, Rosemarine)을 바로 넣거나, 가사와 분위기를 적어 ElevenLabs로 새 곡을 만들 수 있습니다(새 곡 만들기는 ElevenLabs API 키 필요).</li>
         <li><b>재생시간</b>을 정합니다. <i>음악 재생시간에 균등하게 맞춤</i>을 켜면 음악 길이에 맞춰 사진 시간을 자동 배분하고, <i>비트에 맞춰</i>를 켜면 박자에 맞춰 장면이 바뀝니다.</li>
         <li><b>오프닝·엔딩</b> 제목을 확인합니다.</li>
       </ol>

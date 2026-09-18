@@ -23,7 +23,7 @@
 | 단계 | 할 일 |
 |---|---|
 | 1 | **사진·동영상 추가** 또는 화면에 끌어다 놓기 (JPG/PNG/WEBP, MP4/WEBM/MOV, EXIF 회전 자동) |
-| 2 | **배경음악** 넣기 (MP3/M4A/WAV/OGG, 여러 곡 가능) 또는 **AI** 버튼으로 가사·분위기를 적어 새 곡 생성 (Mureka / ElevenLabs / MiniMax API 키) |
+| 2 | **배경음악** 넣기 (MP3/M4A/WAV/OGG, 여러 곡 가능) 또는 **AI** 버튼에서 기본 제공 음악 3곡(키 불필요)을 쓰거나 가사·분위기를 적어 ElevenLabs로 새 곡 생성 |
 | 3 | 장당 재생시간 입력, 또는 *음악 재생시간에 균등하게 맞춤* / *비트에 맞춰 자동 전환* |
 | 4 | 오프닝·엔딩 제목 확인 |
 | 꾸미기 | 자막 · 디자인(배경 20종, 액자 10종) · 효과(전환 12종, 시네마틱 7종) · 동영상 구간 자르기/소리 조절 |
@@ -46,11 +46,12 @@
 
 | 환경 변수 | 서비스 |
 |---|---|
-| `MUREKA_API_KEY` | Mureka (platform.mureka.ai) |
 | `ELEVENLABS_API_KEY` | ElevenLabs Eleven Music |
-| `MINIMAX_API_KEY` | MiniMax Music (2026-08 이전 가입 계정) |
 
 키를 등록하지 않으면 사용자가 자기 키를 입력해 쓰며, 키는 사용자 브라우저에만 저장됩니다. 함수 최대 실행 시간은 `vercel.json`에서 300초로 설정했습니다.
+
+## 기본 제공 음악
+`assets/music/` 에 기본 제공 음악 파일 3곡(봄의 첫빛 2곡, Rosemarine)이 들어 있고, `js/musicgen.js`의 `builtinSong(...)` 항목으로 등록되어 있습니다. 곡을 바꾸려면 파일을 교체하고 그 항목의 제목·경로·길이를 고치면 됩니다.
 
 ## 사용설명서 다시 만들기
 스크린샷은 `docs/manual/img/`, 본문은 `docs/manual/content.js` 에 있습니다.

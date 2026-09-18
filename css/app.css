@@ -318,3 +318,5 @@ button.gen:hover { background: #3a2c1a; border-color: #a8731f; }
 .send-hint ol { margin: 4px 0 0; padding-left: 18px; }
 .send-hint .warn { color: #ffb86b; }
 #btnSend { border-color: #6b5f00; color: #fee500; }
+
+.mg-provider.top { margin-top: 0; padding-top: 0; border-top: 0; margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
