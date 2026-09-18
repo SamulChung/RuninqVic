@@ -1,6 +1,6 @@
 /* RuninqVic service worker: caches the app shell so it opens offline and installs to the home screen.
    Bump CACHE whenever files change (the app also checks for updates on every load). */
-const CACHE = 'runinqvic-v1.5.2';
+const CACHE = 'runinqvic-v1.6.0';
 const SHELL = [
   './', './index.html', './manual.html', './manifest.json',
   './css/app.css',

@@ -320,3 +320,17 @@ button.gen:hover { background: #3a2c1a; border-color: #a8731f; }
 #btnSend { border-color: #6b5f00; color: #fee500; }
 
 .mg-provider.top { margin-top: 0; padding-top: 0; border-top: 0; margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+
+/* operator usage view */
+.usage-body { margin-top: 10px; }
+.us-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
+.us-card { background: var(--bg); border: 1px solid var(--line2); border-radius: 10px; padding: 10px 12px; }
+.us-card .k { font-size: 12px; color: var(--muted); } .us-card .v { font-size: 20px; font-weight: 800; margin-top: 2px; font-variant-numeric: tabular-nums; }
+.us-card .s { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.us-meter { height: 8px; border-radius: 5px; background: var(--bg3); overflow: hidden; margin-top: 6px; } .us-meter i { display: block; height: 100%; background: linear-gradient(90deg, var(--accent), #ffb347); }
+.us-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.us-table th, .us-table td { padding: 5px 8px; border-bottom: 1px solid var(--line); text-align: right; font-variant-numeric: tabular-nums; }
+.us-table th:first-child, .us-table td:first-child { text-align: left; } .us-table td.bar { width: 45%; text-align: left; }
+.us-table .b { display: inline-block; height: 9px; border-radius: 4px; background: var(--accent); vertical-align: middle; min-width: 1px; }
+.us-err { color: #ffb86b; font-size: 12.5px; margin-top: 8px; line-height: 1.6; }
+@media (max-width: 900px) { .us-cards { grid-template-columns: repeat(2, 1fr); } }

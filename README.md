@@ -40,15 +40,23 @@
 - 모바일: 900px 이하에서 세로 레이아웃(미리보기 → 타임라인 → 작업 패널), `navigator.share`로 갤러리·카톡 저장, `manifest.json` + `sw.js`(네트워크 우선, 오프라인 폴백)로 PWA 설치.
 - 동영상 클립: `<video>` 요소를 내보내기 전용 복제본으로 실시간 재생하며 프레임을 캡처(`Renderer.prepare` export 모드). 클립 소리는 `decodeAudioData`로 디코딩해 오프라인 믹스에 합치고, 재생 중 배경음악을 자동으로 낮춥니다(더킹).
 
-## AI 작곡 서버 키 설정 (운영자용)
-`api/music.js`(Vercel 서버리스 함수)가 작곡 서비스 호출을 대신 해 줍니다. Vercel 프로젝트 → Settings → Environment Variables 에 아래 키를 등록하고 재배포하면
-사용자가 키를 입력하지 않아도 그 서비스를 쓸 수 있습니다(요금은 키 소유자에게 청구).
+## AI 작곡 서버 키 설정 (운영자 · 강의용)
+`api/music.js`(Vercel 서버리스 함수)가 ElevenLabs 호출을 대신 해 줍니다. 운영자 키를 서버에 등록하면 수강생은 키 없이 작곡할 수 있습니다.
 
-| 환경 변수 | 서비스 |
+**가장 쉬운 방법:** `강의설정.bat` 더블클릭 → 창에 키·강의 코드·관리자 코드 입력 → [저장하고 사이트에 반영]. (Vercel에 로그인된 PC에서만 동작, 키는 파일에 남지 않고 `vercel env add`의 표준 입력으로만 전달)
+
+| 환경 변수 | 뜻 |
 |---|---|
-| `ELEVENLABS_API_KEY` | ElevenLabs Eleven Music |
+| `ELEVENLABS_API_KEY` | 운영자 키. 등록하면 방문자가 키 없이 작곡 가능 (요금은 키 소유자 부담) |
+| `LECTURE_CODE` | 이 코드를 넣은 요청만 운영자 키 사용. 코드가 없으면 운영자 키는 꺼진 상태로 취급(fail closed) |
+| `LECTURE_OPEN` | (선택) `1`이면 코드 없이 누구나 운영자 키 사용(공개 모드, 비권장) |
+| `ADMIN_CODE` | (선택) 도움말 › 사용량(운영자) 화면을 여는 코드 |
+| `LECTURE_MAX_SECONDS` | (선택, 기본 120) 운영자 키로 만드는 곡의 최대 길이 |
+| `LECTURE_RATE_PER_10MIN` | (선택, 기본: 강의 코드 사용 시 60 · 공개 모드 6) 같은 IP에서 10분 동안 만들 수 있는 곡 수. 별도로 브라우저당 10분 5곡, 잘못된 코드 10분 40회 제한 |
 
-키를 등록하지 않으면 사용자가 자기 키를 입력해 쓰며, 키는 사용자 브라우저에만 저장됩니다. 함수 최대 실행 시간은 `vercel.json`에서 300초로 설정했습니다.
+사용량 화면은 ElevenLabs의 `GET /v1/user/subscription`, `GET /v1/usage/character-stats`를 서버에서 호출해 보여 줍니다(키에 사용량 조회 권한 필요). 강의가 끝나면 도구의 [강의 종료]로 키를 내리세요(키와 `LECTURE_OPEN`만 지우고 코드는 유지). 도구는 설정을 바꾼 뒤 `vercel redeploy runinqvic.vercel.app --target production`으로 서비스 중인 버전을 다시 배포하므로 로컬 폴더의 파일은 올라가지 않습니다.
+
+서버 키로는 `POST /v1/music/plan`, `POST /v1/music` 두 호출만 중계하며(JSON·동일 출처 요청만), 곡 길이는 서버에서 강제로 줄입니다. 운영자 키에서 난 오류(크레딧 부족 등)는 내용을 숨기고 "강사에게 알려 주세요"로만 안내합니다.
 
 ## 기본 제공 음악
 `assets/music/` 에 기본 제공 음악 파일 3곡(봄의 첫빛 2곡, Rosemarine)이 들어 있고, `js/musicgen.js`의 `builtinSong(...)` 항목으로 등록되어 있습니다. 곡을 바꾸려면 파일을 교체하고 그 항목의 제목·경로·길이를 고치면 됩니다.
@@ -62,4 +70,6 @@ NODE_PATH=<docx 패키지가 설치된 node_modules> node docs/manual/build-manu
 ## 테스트
 ```
 node tests/timeline.test.js
+node tests/musicgen.test.js
+node tests/proxy.test.js
 ```

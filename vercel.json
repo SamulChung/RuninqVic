@@ -2,6 +2,6 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "cleanUrls": true,
   "functions": {
-    "api/*.js": { "maxDuration": 300 }
+    "api/*.js": { "maxDuration": 300, "supportsCancellation": true }
   }
 }

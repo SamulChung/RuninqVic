@@ -808,18 +808,24 @@
     $('#mgStart').hidden = view !== 'form'; $('#mgAdd').hidden = view !== 'result'; $('#mgRetry').hidden = view !== 'result'; $('#mgDownload').hidden = view !== 'result';
     $('#mgCancel').textContent = view === 'progress' ? '중단' : (view === 'result' ? '닫기' : '취소');
   }
-  async function mgSyncProvider() {
+  async function mgSyncProvider(prefillKey) {
     const id = $('#mgProvider').value, prov = RV.musicgen.providers[id]; if (!prov) return;
     const info = await RV.musicgen.probeServer();
     const serverKey = !!(info.ok && info.providers && info.providers[id]);
     $('#mgProviderNote').textContent = prov.note || '';
-    $('#mgKeyRow').hidden = !!prov.noKey || serverKey;
+    const needsCode = serverKey && !!info.needsCode && !prov.noKey;
+    $('#mgCodeRow').hidden = !needsCode;
+    if (needsCode && !$('#mgCode').value) $('#mgCode').value = localStorage.getItem('rv.lecture.code') || '';
+    /* own-key row: hidden for built-in songs and when the site key works without a code */
+    $('#mgKeyRow').hidden = !!prov.noKey || (serverKey && !needsCode);
+    const keyLabel = $('#mgKeyRow label.wide'); if (keyLabel && keyLabel.firstChild) keyLabel.firstChild.textContent = needsCode ? '또는 내 API 키 ' : 'API 키 ';
     $('.mg-grid').hidden = !!prov.builtin; /* style/lyrics inputs only matter for AI composition */
     $('#mgStart').textContent = prov.builtin ? '🎵 이 곡 듣고 넣기' : '✨ 만들기';
     $('#mgHint').textContent = prov.builtin ? '기본으로 들어 있는 곡입니다. [이 곡 듣고 넣기]를 누르면 미리 들어보고 배경음악으로 넣을 수 있습니다. 키나 요금이 필요 없습니다.'
-      : serverKey ? '이 사이트에 등록된 작곡 서비스 키를 사용합니다. 별도 키가 필요 없습니다.'
+      : needsCode ? '강의 코드를 넣으면 강사가 등록한 키로 작곡합니다(한 곡 최대 ' + Math.round((info.maxSongSeconds || 120) / 60 * 10) / 10 + '분). 코드가 없으면 아래에 내 ElevenLabs API 키를 넣어 쓸 수 있습니다.'
+      : serverKey ? '이 사이트에 등록된 작곡 서비스 키를 사용합니다. 별도 키가 필요 없습니다. 한 곡은 최대 ' + Math.round((info.maxSongSeconds || 120) / 60 * 10) / 10 + '분입니다.'
       : '키는 이 PC의 브라우저 안에만 저장되며 작곡 요청에만 사용됩니다. 곡 하나에 보통 30초~2분이 걸리고, 서비스 요금이 발생할 수 있습니다.';
-    $('#mgKey').value = RV.musicgen.getKey(id) || '';
+    if (prefillKey !== false) $('#mgKey').value = RV.musicgen.getKey(id) || '';
     $('#mgKeyLink').href = prov.keyUrl || '#'; $('#mgKeyLink').hidden = !prov.keyUrl;
   }
   async function openMusicGen() {
@@ -847,14 +853,16 @@
     if (!prov.builtin && !style && !lyrics) { toast('분위기·스타일이나 가사를 적어 주세요.', true); $('#mgStyle').focus(); return; }
     let lengthSec = $('#mgLength').value === 'fit' ? Math.round(S.tl.total) : +$('#mgLength').value;
     lengthSec = RV.clamp(lengthSec || 120, 10, 300);
-    const key = $('#mgKey').value.trim();
-    RV.musicgen.setKey(provider, key, $('#mgKeySave').checked);
+    const key = $('#mgKeyRow').hidden ? '' : $('#mgKey').value.trim();
+    const accessCode = $('#mgCodeRow').hidden ? '' : $('#mgCode').value.trim();
+    if (accessCode) localStorage.setItem('rv.lecture.code', accessCode);
+    if (!$('#mgKeyRow').hidden) RV.musicgen.setKey(provider, key, $('#mgKeySave').checked);
     localStorage.setItem('rv.musicgen.provider', provider);
     mgAbort = new AbortController(); mgShow('progress');
     const t0 = performance.now();
     const tick = setInterval(() => { const s = Math.round((performance.now() - t0) / 1000); const base = $('#mgStatus').dataset.base || '작곡 중…'; $('#mgStatus').textContent = base + ' (' + s + '초 경과)'; }, 1000);
     try {
-      const res = await RV.musicgen.generate({ provider, style, lyrics, vocal, lengthSec, key, signal: mgAbort.signal, onStatus: (m) => { $('#mgStatus').dataset.base = m; $('#mgStatus').textContent = m; } });
+      const res = await RV.musicgen.generate({ provider, style, lyrics, vocal, lengthSec, key, accessCode, signal: mgAbort.signal, onStatus: (m) => { $('#mgStatus').dataset.base = m; $('#mgStatus').textContent = m; } });
       mgResult = res; if (mgUrl) URL.revokeObjectURL(mgUrl); mgUrl = URL.createObjectURL(res.blob);
       $('#mgAudio').src = mgUrl;
       const title = (style ? style.split(/[,，·]/)[0].trim().slice(0, 24) : '새 곡') + (lyrics && vocal !== 'none' ? '' : ' (연주곡)');
@@ -865,7 +873,12 @@
       mgShow('result'); $('#mgAudio').play().catch(() => {});
     } catch (e) {
       console.error(e); mgShow('form');
-      if (e.name === 'AbortError') toast('작곡을 중단했습니다.'); else toast('작곡 실패: ' + (e.message || e), true);
+      if (e.name === 'AbortError') toast('작곡을 중단했습니다.');
+      else {
+        toast('작곡 실패: ' + (e.message || e), true);
+        await mgSyncProvider(false);
+        if (e.reason === 'bad_code' && !$('#mgCodeRow').hidden) { localStorage.removeItem('rv.lecture.code'); $('#mgCode').focus(); $('#mgCode').select(); }
+      }
     } finally { clearInterval(tick); mgAbort = null; }
   }
   async function addGeneratedMusic() {
@@ -878,6 +891,50 @@
     const tr = S.project.music.tracks[S.project.music.tracks.length - 1];
     if (tr && tr.name === name) { tr.generated = mgResult.meta; scheduleSave(); }
     if (!S.project.fitToMusic && !S.project.beatSync && S.project.slides.length) toast('팁: 3번의 "음악 재생시간에 균등하게 맞춤"을 켜면 새 곡 길이에 맞춰집니다.');
+  }
+
+  /* ---------------- operator usage view ---------------- */
+  let usageSeq = 0;
+  const escHtml = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+  function fmtN(n) { return (n == null || isNaN(n)) ? '-' : Math.round(n).toLocaleString('ko-KR'); }
+  function renderUsage(u) {
+    const sub = u.subscription, days = (u.days || []).slice(-14);
+    const today = days.length ? days[days.length - 1] : null;
+    const total14 = days.reduce((a, d) => a + d.credits, 0), req14 = days.reduce((a, d) => a + d.requests, 0);
+    const maxC = Math.max(1, ...days.map((d) => d.credits));
+    let html = '<div class="us-cards">';
+    if (sub) {
+      const pct = sub.limit ? Math.min(100, sub.used / sub.limit * 100) : 0;
+      html += '<div class="us-card"><div class="k">이번 달 사용 크레딧</div><div class="v">' + fmtN(sub.used) + '</div><div class="us-meter"><i style="width:' + pct.toFixed(1) + '%"></i></div><div class="s">한도 ' + fmtN(sub.limit) + ' 중 ' + pct.toFixed(1) + '%</div></div>';
+      html += '<div class="us-card"><div class="k">남은 크레딧</div><div class="v">' + fmtN(sub.remaining) + '</div><div class="s">' + (sub.resetUnix ? new Date(sub.resetUnix * 1000).toLocaleDateString('ko-KR') + ' 초기화' : '') + (sub.tier ? ' · ' + escHtml(sub.tier) : '') + '</div></div>';
+    }
+    html += '<div class="us-card"><div class="k">오늘 사용</div><div class="v">' + fmtN(today ? today.credits : 0) + '</div><div class="s">요청 ' + fmtN(today ? today.requests : 0) + '회</div></div>';
+    html += '<div class="us-card"><div class="k">최근 14일</div><div class="v">' + fmtN(total14) + '</div><div class="s">요청 ' + fmtN(req14) + '회</div></div></div>';
+    if (days.length) {
+      html += '<table class="us-table"><thead><tr><th>날짜</th><th>크레딧</th><th>요청</th><th></th></tr></thead><tbody>' +
+        days.slice().reverse().map((d) => '<tr><td>' + new Date(d.t).toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric', weekday: 'short' }) + '</td><td>' + fmtN(d.credits) + '</td><td>' + fmtN(d.requests) + '</td><td class="bar"><span class="b" style="width:' + (d.credits / maxC * 100).toFixed(1) + '%"></span></td></tr>').join('') + '</tbody></table>';
+      const prod = Object.entries(u.byProduct || {}).filter(([, v]) => v > 0).map(([k, v]) => escHtml(k) + ' ' + fmtN(v)).join(' · ');
+      if (prod) html += '<div class="hint">기능별(14일): ' + prod + '</div>';
+    }
+    if (u.errors && u.errors.length) html += '<div class="us-err">' + u.errors.map((e) => '⚠ ' + escHtml(e)).join('<br>') + '</div>';
+    html += '<div class="hint">숫자는 ElevenLabs 계정 전체 기준입니다. 강의 전용 키만의 사용량은 ElevenLabs 사이트의 Usage 화면에서 키별로 볼 수 있습니다. 음악 1분은 요금제에 따라 정해진 크레딧이 차감됩니다.</div>';
+    $('#usBody').innerHTML = html;
+    $('#usStamp').textContent = new Date().toLocaleTimeString('ko-KR') + ' 기준';
+  }
+  async function loadUsage() {
+    const code = $('#usAdmin').value.trim();
+    if (!code) { toast('관리자 코드를 입력해 주세요.', true); return; }
+    $('#usBody').innerHTML = '<div class="mg-wait"><div class="spinner"></div><div class="ex-status">ElevenLabs에서 사용량을 불러오는 중…</div></div>';
+    const seq = ++usageSeq; $('#usLoad').disabled = true;
+    try { const u = await RV.musicgen.usage(code); if (seq !== usageSeq) return; localStorage.setItem('rv.admin.code', code); renderUsage(u); }
+    catch (e) { if (seq !== usageSeq) return; localStorage.removeItem('rv.admin.code'); $('#usBody').innerHTML = '<div class="us-err">⚠ ' + escHtml(e.message || e) + '</div>'; }
+    finally { if (seq === usageSeq) $('#usLoad').disabled = false; }
+  }
+  function openUsage() {
+    closeModal('helpModal');
+    $('#usAdmin').value = localStorage.getItem('rv.admin.code') || '';
+    openModal('usageModal');
+    if ($('#usAdmin').value) loadUsage(); else $('#usAdmin').focus();
   }
 
   /* ---------------- project file ---------------- */
@@ -1013,6 +1070,10 @@
     on('#btnMoveL', 'click', () => moveSlide(-1)); on('#btnMoveR', 'click', () => moveSlide(1));
     on('#btnStageOpts', 'click', (e) => { const onNow = document.body.classList.toggle('show-opts'); e.currentTarget.classList.toggle('on', onNow); sizePreview(); drawFrame(); });
 
+    /* operator usage */
+    on('#btnUsage', 'click', openUsage); on('#usLoad', 'click', loadUsage);
+    on('#usAdmin', 'keydown', (e) => { if (e.key === 'Enter') loadUsage(); });
+
     /* AI music */
     on('#btnGenMusic', 'click', openMusicGen); on('#btnGenMusic2', 'click', openMusicGen);
     on('#mgStart', 'click', startMusicGen);
@@ -1077,5 +1138,5 @@
   window.addEventListener('DOMContentLoaded', init);
 
   /* debug/test hooks */
-  RV.app = { S, addPhotos, addMusic, update, select, play, stopPlayback, seek, openExport, startExport, exportSettings, setProject, addTextSlide, platform, saveHintHtml, sendHintHtml, openSendPanel, getLastExport: () => lastExport };
+  RV.app = { S, addPhotos, addMusic, update, select, play, stopPlayback, seek, openExport, startExport, exportSettings, setProject, addTextSlide, platform, saveHintHtml, sendHintHtml, openSendPanel, getLastExport: () => lastExport, renderUsage };
 })();

@@ -10,6 +10,10 @@
     '웅장한 시네마틱 오케스트라', '경쾌한 트로트', '밝은 동요', '크리스마스 캐럴', '차분한 뉴에이지', '축하 파티 댄스',
   ];
 
+  function clientId() {
+    try { let id = localStorage.getItem('rv.client.id'); if (!id) { id = (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2) + Date.now()); localStorage.setItem('rv.client.id', id); } return id; }
+    catch (e) { return ''; }
+  }
   function loadKeys() { try { return JSON.parse(localStorage.getItem(LS_KEY) || '{}'); } catch (e) { return {}; } }
   function saveKeys(k) { try { localStorage.setItem(LS_KEY, JSON.stringify(k)); } catch (e) { /* ignore */ } }
 
@@ -118,8 +122,12 @@
         }
         o.onStatus && o.onStatus('ElevenLabs가 작곡하는 중… (보통 30초~2분)');
         const r = await callVendor('https://api.elevenlabs.io/v1/music?output_format=mp3_44100_128', { method: 'POST', headers: Object.assign({ Accept: 'audio/mpeg' }, H), body: JSON.stringify(body) }, o);
-        const blob = await r.blob();
+        let blob;
+        try { blob = await r.blob(); }
+        catch (e) { if (e && e.name === 'AbortError') throw e; throw new Error('곡을 받는 중 연결이 끊겼습니다. 다시 시도해 주세요.'); }
         if (!blob.size) throw new Error('빈 응답을 받았습니다.');
+        /* mp3_44100_128 is about 16 KB per second: far less than that means the download was cut off */
+        if (blob.size < lengthMs / 1000 * 16000 * 0.2) throw new Error('곡이 끝까지 받아지지 않았습니다. 다시 시도해 주세요.');
         return { blob: blob.type && blob.type.startsWith('audio') ? blob : new Blob([blob], { type: 'audio/mpeg' }), mime: 'audio/mpeg', ext: 'mp3' };
       },
     },
@@ -132,16 +140,6 @@
   function sleep(ms, signal) {
     return new Promise((res, rej) => { const t = setTimeout(res, ms); if (signal) signal.addEventListener('abort', () => { clearTimeout(t); rej(new DOMException('취소됨', 'AbortError')); }, { once: true }); });
   }
-  /* download a finished song: direct first (CDNs usually allow it), then via the proxy */
-  async function fetchAudio(url, o) {
-    try { const r = await fetch(url, { signal: o.signal }); if (r.ok) { const b = await r.blob(); if (b.size) return b; } } catch (e) { /* CORS or network: try proxy */ }
-    const info = await probeServer();
-    if (!info.ok) throw new Error('완성된 곡 파일을 내려받을 수 없습니다(브라우저 보안 제한). 웹 버전(runinqvic.vercel.app)에서 다시 시도해 주세요.');
-    const r = await fetch('api/music', { method: 'POST', signal: o.signal, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url, method: 'GET', headers: {}, body: null, provider: o.provider, useServerKey: false }) });
-    if (!r.ok) throw new Error('곡 파일 내려받기 실패: ' + r.status);
-    return await r.blob();
-  }
-
   function wavBlob(buffer) {
     const n = buffer.length, ch = 2, sr = buffer.sampleRate; const out = new DataView(new ArrayBuffer(44 + n * ch * 2));
     const s = (o, str) => { for (let i = 0; i < str.length; i++) out.setUint8(o + i, str.charCodeAt(i)); };
@@ -152,15 +150,22 @@
   }
 
   /* server proxy discovery (only meaningful when served over http/https) */
-  let serverInfo = null;
-  async function probeServer() {
-    if (serverInfo) return serverInfo;
-    if (!/^https?:/.test(location.protocol)) return (serverInfo = { ok: false, providers: {} });
-    try {
-      const r = await fetch('api/music?probe=1', { cache: 'no-store' });
-      serverInfo = r.ok ? await r.json() : { ok: false, providers: {} };
-    } catch (e) { serverInfo = { ok: false, providers: {} }; }
-    return serverInfo;
+  let serverInfo = null, serverInfoAt = 0;
+  let probing = null;
+  function probeServer() {
+    /* re-check every minute so a change made by the operator reaches open pages; a failed check is retried after 5 s */
+    const ttl = serverInfo && serverInfo.ok ? 60000 : 5000;
+    if (serverInfo && performance.now() - serverInfoAt < ttl) return Promise.resolve(serverInfo);
+    if (probing) return probing;   /* share one request between callers that ask at the same time */
+    if (!/^https?:/.test(location.protocol)) { serverInfoAt = performance.now(); return Promise.resolve(serverInfo = { ok: false, providers: {} }); }
+    probing = (async () => {
+      let info;
+      try { const r = await fetch('api/music?probe=1', { cache: 'no-store' }); info = r.ok ? await r.json() : null; } catch (e) { info = null; }
+      serverInfo = info && typeof info === 'object' && info.providers ? info : { ok: false, providers: {} };
+      serverInfoAt = performance.now(); probing = null;
+      return serverInfo;
+    })();
+    return probing;
   }
 
   /* Perform a vendor request: through the proxy when available (avoids CORS, can use a server key), else direct. */
@@ -169,17 +174,24 @@
     let r;
     if (info.ok) {
       const headers = Object.assign({}, init.headers || {});
-      r = await fetch('api/music', { method: 'POST', signal: o.signal, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url, method: init.method || 'POST', headers, body: init.body || null, provider: o.provider, useServerKey: !o.key }) });
+      r = await fetch('api/music', { method: 'POST', signal: o.signal, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url, method: init.method || 'POST', headers, body: init.body || null, provider: o.provider, useServerKey: !o.key, accessCode: o.accessCode || '', clientId: clientId() }) });
     } else {
       if (!o.key) throw new Error('API 키가 필요합니다.');
       r = await fetch(url, Object.assign({}, init, { signal: o.signal }));
     }
     if (!r.ok) {
-      let msg = r.status + ' ' + r.statusText;
-      try { const t = await r.text(); try { const j = JSON.parse(t); msg = (j.error && (j.error.message || j.error)) || j.detail && (j.detail.message || JSON.stringify(j.detail)) || j.message || msg; } catch (e2) { if (t) msg = t.slice(0, 300); } } catch (e) { /* ignore */ }
-      if (r.status === 401 || r.status === 403) msg = 'API 키가 올바르지 않거나 권한이 없습니다. (' + msg + ')';
-      if (r.status === 402) msg = '서비스 잔액(크레딧)이 부족합니다. (' + msg + ')';
-      throw new Error(msg);
+      let msg = r.status + ' ' + r.statusText, ours = false, reason = '';
+      try {
+        const t = await r.text();
+        try {
+          const j = JSON.parse(t);
+          if (typeof j.error === 'string') { msg = j.error; ours = true; reason = String(j.reason || ''); }   /* message from our own proxy (already Korean) */
+          else msg = (j.error && j.error.message) || (j.detail && (j.detail.message || JSON.stringify(j.detail))) || j.message || msg;
+        } catch (e2) { if (t) msg = t.slice(0, 300); }
+      } catch (e) { /* ignore */ }
+      if (!ours && (r.status === 401 || r.status === 403)) msg = 'API 키가 올바르지 않거나 권한이 없습니다. (' + msg + ')';
+      if (!ours && r.status === 402) msg = '서비스 잔액(크레딧)이 부족합니다. (' + msg + ')';
+      const err = new Error(msg); err.status = r.status; err.ours = ours; err.reason = reason; throw err;
     }
     return r;
   }
@@ -188,23 +200,35 @@
     STYLE_CHIPS,
     providers,
     providerIds: () => Object.keys(providers),
-    getKey: (id) => (loadKeys()[id] || ''),
-    setKey: (id, key, persist) => { const k = loadKeys(); if (persist && key) k[id] = key; else delete k[id]; saveKeys(k); if (!persist && key) sessionKeys[id] = key; },
+    getKey: (id) => (sessionKeys[id] || loadKeys()[id] || ''),
+    setKey: (id, key, persist) => { const k = loadKeys(); if (persist && key) k[id] = key; else delete k[id]; saveKeys(k); if (!persist && key) sessionKeys[id] = key; else if (!key) delete sessionKeys[id]; },
     probeServer,
     buildPrompt,
     _internals: { parseLyricSections, sectionName },
-    /* generate({provider, style, lyrics, vocal, lengthSec, key, signal, onStatus}) -> {blob, mime, ext, meta} */
+    /* operator-only: usage summary of the key registered on the server */
+    async usage(adminCode) {
+      const r = await fetch('api/music?usage=1', { cache: 'no-store', headers: { 'x-admin-code': adminCode || '' } });
+      let j = null; try { j = await r.json(); } catch (e) { /* ignore */ }
+      if (!r.ok) throw new Error((j && j.error) || ('사용량을 불러오지 못했습니다 (' + r.status + ')'));
+      return j;
+    },
+    /* generate({provider, style, lyrics, vocal, lengthSec, key, accessCode, signal, onStatus}) -> {blob, mime, ext, meta}
+       Key choice: the server (lecture) key when the site has one - and, if the site asks for a lecture code, only when a code is given;
+       otherwise the visitor's own key. */
     async generate(p) {
       const prov = providers[p.provider]; if (!prov) throw new Error('알 수 없는 작곡 서비스입니다.');
       const info = await probeServer();
-      const key = p.key || sessionKeys[p.provider] || RV.musicgen.getKey(p.provider) || '';
+      const ownKey = p.key || sessionKeys[p.provider] || RV.musicgen.getKey(p.provider) || '';
       const serverHasKey = !!(info.ok && info.providers && info.providers[p.provider]);
-      if (!prov.noKey && !key && !serverHasKey) throw new Error('API 키를 입력해 주세요.');
+      const useServer = !prov.noKey && serverHasKey && (!info.needsCode || !!p.accessCode);
+      if (!prov.noKey && !useServer && !ownKey) throw new Error(serverHasKey && info.needsCode ? '강의 코드를 입력하거나 내 API 키를 넣어 주세요.' : 'API 키를 입력해 주세요.');
       if (!info.ok && !prov.directCors && !prov.noKey) throw new Error('이 서비스는 웹 버전(https://runinqvic.vercel.app)에서만 쓸 수 있습니다. 브라우저에서 직접 호출할 수 없습니다.');
+      if (useServer && info.maxSongSeconds && p.lengthSec > info.maxSongSeconds) p = Object.assign({}, p, { lengthSec: info.maxSongSeconds });
+      const key = useServer ? '' : ownKey;
       const t0 = performance.now();
       p.onStatus && p.onStatus('작곡 요청을 보냈습니다. 보통 30초~2분 걸립니다…');
-      const res = await prov.generate(p, key, { signal: p.signal, onStatus: p.onStatus, provider: p.provider, key: serverHasKey && !p.key ? '' : key });
-      res.meta = { provider: p.provider, style: p.style, lyrics: res.lyrics || p.lyrics, vocal: p.vocal, lengthSec: p.lengthSec, madeLyrics: res.lyrics || null, seconds: Math.round((performance.now() - t0) / 1000), prompt: buildPrompt(p) };
+      const res = await prov.generate(p, key, { signal: p.signal, onStatus: p.onStatus, provider: p.provider, key, accessCode: useServer ? (p.accessCode || '') : '' });
+      res.meta = { provider: p.provider, style: p.style, lyrics: res.lyrics || p.lyrics, vocal: p.vocal, lengthSec: p.lengthSec, madeLyrics: res.lyrics || null, seconds: Math.round((performance.now() - t0) / 1000), prompt: buildPrompt(p), usedServerKey: useServer };
       return res;
     },
   };
