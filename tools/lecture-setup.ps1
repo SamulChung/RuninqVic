@@ -147,15 +147,33 @@ $log.Multiline = $true; $log.ReadOnly = $true; $log.ScrollBars = 'Vertical'; $lo
 $form.Controls.Add($log)
 
 $script:busy = $false
+$script:noPrompt = [bool]$TestCheck   # developer checks must never stop on a dialog
 function Log([string]$msg) { $log.AppendText($msg + "`r`n"); [System.Windows.Forms.Application]::DoEvents() }
 function Set-Busy([bool]$b) { $script:busy = $b; foreach ($x in @($btnSave, $btnCheck, $btnEnd, $btnClose)) { $x.Enabled = -not $b }; $form.Cursor = $(if ($b) { 'WaitCursor' } else { 'Default' }) }
 $form.Add_FormClosing({ param($s, $e) if ($script:busy) { $e.Cancel = $true; [void][System.Windows.Forms.MessageBox]::Show('작업이 끝날 때까지 잠시만 기다려 주세요.', $appTitle) } })
 
+# opens a console window running "vercel login": the user approves in the browser, this tool never sees the password
+function Start-VercelLogin {
+  if ($script:noPrompt) { return $false }
+  $msg = "이 PC에서 Vercel 로그인이 필요합니다. (처음 한 번만)`r`n`r`n[예]를 누르면 검은 창과 브라우저가 열립니다.`r`n1) 브라우저에서 RuninqVic을 배포한 Vercel 계정으로 로그인하고 승인합니다.`r`n2) 검은 창에 완료 표시가 나오면 아무 키나 눌러 창을 닫습니다.`r`n3) 그러면 하던 작업을 이어서 진행합니다.`r`n`r`n지금 로그인할까요?"
+  if ([System.Windows.Forms.MessageBox]::Show($msg, $appTitle, 'YesNo', 'Information') -ne 'Yes') { return $false }
+  Log '· 로그인 창을 열었습니다. 브라우저에서 승인한 뒤 검은 창에서 아무 키나 눌러 주세요…'
+  try { $p = Start-Process -FilePath $env:ComSpec -ArgumentList ('/d /c ""' + $vercelCmd + '" login & echo. & pause"') -WorkingDirectory $root -PassThru }
+  catch { Log ('  로그인 창을 열지 못했습니다: ' + $_.Exception.Message); return $false }
+  $deadline = (Get-Date).AddMinutes(15)
+  while (-not $p.HasExited) { [System.Windows.Forms.Application]::DoEvents(); Start-Sleep -Milliseconds 150; if ((Get-Date) -gt $deadline) { Log '  로그인 시간이 너무 오래 걸려 중단했습니다.'; return $false } }
+  return $true
+}
 function Test-Ready {
   if (-not $vercelCmd) { Log '⚠ vercel 프로그램이 설치되어 있지 않습니다. (Node.js 설치 후 명령 프롬프트에서 npm i -g vercel)'; return $false }
   if (-not (Test-Path (Join-Path $root '.vercel\project.json'))) { Log '⚠ 이 폴더가 Vercel 프로젝트와 연결되어 있지 않습니다. (RuninqVic을 배포한 PC의 폴더에서 실행해 주세요)'; return $false }
   $who = Invoke-Vercel 'whoami' $null
-  if ($who.Code -ne 0) { Log '⚠ Vercel에 로그인되어 있지 않습니다.'; Log $who.Out.Trim(); return $false }
+  if ($who.Code -ne 0 -and $who.Out -match 'credentials|vercel login|not authenticated|token') {
+    # first use on this PC (or the login expired): let the user sign in through the browser, then carry on
+    Log '이 PC에서 Vercel 로그인이 필요합니다.'
+    if (Start-VercelLogin) { $who = Invoke-Vercel 'whoami' $null }
+  }
+  if ($who.Code -ne 0) { Log '⚠ Vercel에 로그인되어 있지 않습니다. 버튼을 다시 누르면 로그인 창을 열 수 있습니다.'; Log $who.Out.Trim(); return $false }
   Log ('Vercel 계정: ' + (($who.Out -split "`n") | Where-Object { $_.Trim() -and $_ -notmatch 'Vercel CLI' } | Select-Object -Last 1).Trim())
   return $true
 }
