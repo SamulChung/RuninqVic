@@ -115,7 +115,7 @@
 
       /* 1. background */
       if (bgStyle && bgStyle !== 'none') RV.drawBackground(ctx, W, H, bgStyle, project.bgColor);
-      else if (img && project.blurFill && fit !== 'fill') ctx.drawImage(this.blurredBg(img, s, project), 0, 0);
+      else if (img && project.blurFill && (fit !== 'fill' || s.place)) ctx.drawImage(this.blurredBg(img, s, project), 0, 0);
       else { ctx.fillStyle = project.bgColor || '#000'; ctx.fillRect(0, 0, W, H); }
 
       /* 2. frame base */
@@ -133,14 +133,19 @@
         else if (fit === 'original') scale = Math.min(1, rect.w / iw, rect.h / ih) * (W / 1920);
         else scale = Math.min(rect.w / iw, rect.h / ih);
         const dw = iw * scale, dh = ih * scale;
+        /* manual placement (s.place = {zoom, x, y}: zoom on top of the fit, offset as a fraction of the frame) */
+        const pl = s.place || null;
         let z = 1, px = 0, py = 0;
         if (project.kenBurns && s.kb && s.type !== 'video') {
           const e = RV.easeInOut(u), k = project.kbIntensity == null ? 1 : project.kbIntensity;
           z = 1 + (RV.lerp(s.kb.z0, s.kb.z1, e) - 1) * k;
-          const slackX = Math.max(0, (dw * z - rect.w) / 2), slackY = Math.max(0, (dh * z - rect.h) / 2);
-          px = RV.lerp(s.kb.x0, s.kb.x1, e) * slackX * k;
-          py = RV.lerp(s.kb.y0, s.kb.y1, e) * slackY * k;
+          if (!pl) {
+            const slackX = Math.max(0, (dw * z - rect.w) / 2), slackY = Math.max(0, (dh * z - rect.h) / 2);
+            px = RV.lerp(s.kb.x0, s.kb.x1, e) * slackX * k;
+            py = RV.lerp(s.kb.y0, s.kb.y1, e) * slackY * k;
+          }   /* a hand-placed photo keeps its framing: gentle zoom only, no drift */
         }
+        if (pl) { z *= pl.zoom || 1; px += (pl.x || 0) * rect.w; py += (pl.y || 0) * rect.h; }
         ctx.translate(rect.x + rect.w / 2 + px, rect.y + rect.h / 2 + py);
         ctx.scale(z, z);
         ctx.rotate(rot * Math.PI / 180);
@@ -162,6 +167,21 @@
 
       /* 6. caption */
       if (s.caption && s.caption.text) this.drawCaption(ctx, s.caption, u, dur, rect);
+    }
+
+    /* geometry of a photo inside its frame, for the hand-placement tool (canvas pixels of this renderer) */
+    photoGeometry(s, project, assets) {
+      const W = this.W, H = this.H;
+      const img = s.assetId && assets.images.get(s.assetId);
+      if (!img || !img.width) return null;
+      const frame = RV.frameById(s.frame != null ? s.frame : project.frame);
+      const rect = RV.frameRect(frame, W, H);
+      const fit = s.type === 'text' ? 'fit' : project.fit;
+      const rot = ((s.rotation || 0) % 360 + 360) % 360, swap = rot === 90 || rot === 270;
+      const iw = swap ? img.height : img.width, ih = swap ? img.width : img.height;
+      const fitScale = Math.min(rect.w / iw, rect.h / ih), fillScale = Math.max(rect.w / iw, rect.h / ih);
+      const base = fit === 'fill' ? fillScale : fit === 'original' ? Math.min(1, rect.w / iw, rect.h / ih) * (W / 1920) : fitScale;
+      return { W, H, rect, dw: iw * base, dh: ih * base, zoomToFit: fitScale / base, zoomToFill: fillScale / base };
     }
 
     blurredBg(img, s, project) {

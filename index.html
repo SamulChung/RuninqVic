@@ -18,7 +18,7 @@
 </head>
 <body>
 <header class="topbar">
-  <div class="brand"><img class="logo" src="assets/logo.svg" alt="" width="28" height="28"><span class="name">RuninqVic</span><span class="ver">v1.6</span><a class="maker-logo" href="https://www.tenai.kr" target="_blank" rel="noopener" title="제작: (주)텐에이아이 · www.tenai.kr"><img src="assets/tenai-logo-dark.png" alt="TenAI"></a></div>
+  <div class="brand"><img class="logo" src="assets/logo.svg" alt="" width="28" height="28"><span class="name">RuninqVic</span><span class="ver">v1.7</span><a class="maker-logo" href="https://www.tenai.kr" target="_blank" rel="noopener" title="제작: (주)텐에이아이 · www.tenai.kr"><img src="assets/tenai-logo-dark.png" alt="TenAI"></a></div>
   <input id="projName" class="proj-name" title="프로젝트 이름" spellcheck="false">
   <div class="top-actions">
     <button id="btnNew" title="새 프로젝트 (Ctrl+N)"><span class="ico">🆕</span><span class="txt">새로 만들기</span></button>
@@ -41,6 +41,17 @@
         <p class="credit"><a href="https://www.tenai.kr" target="_blank" rel="noopener" title="(주)텐에이아이 홈페이지"><img class="credit-logo" src="assets/tenai-logo-dark.png" alt="TenAI"></a><br>제작 · (주)텐에이아이 · <a href="https://www.tenai.kr" target="_blank" rel="noopener">www.tenai.kr</a></p>
       </div>
       <div class="drop-overlay" id="dropOverlay">여기에 놓으면 추가됩니다</div>
+      <div class="place-hint" id="placeHint" hidden>사진을 끌어서 옮기고, 두 손가락(마우스는 휠)으로 크기를 바꾸세요</div>
+      <div class="place-bar" id="placeBar" hidden>
+        <button id="plOut" class="icon" title="작게">－</button>
+        <input type="range" id="plZoom" min="-93" max="104" step="1" value="0" title="사진 크기">
+        <button id="plIn" class="icon" title="크게">＋</button>
+        <button id="plFit" title="사진 전체가 보이게">맞춤</button>
+        <button id="plFill" title="틀을 가득 채우게">채움</button>
+        <button id="plReset" title="직접 조절한 것을 지우고 자동 배치로 되돌리기">자동</button>
+        <button id="plDone" class="primary">완료</button>
+      </div>
+      <div class="pv-grip" id="pvGrip" title="끌어서 미리보기 크기 조절 (두 번 누르면 자동)"><i></i></div>
     </div>
     <div class="controls">
       <div class="tc"><span id="tcCur">00:00.0</span><span class="sep">/</span><span id="tcTotal">00:00.0</span></div>
@@ -51,6 +62,7 @@
         <span class="vsep"></span>
         <button id="btnRotL" class="icon" title="선택한 사진 왼쪽으로 90° 회전">↺</button>
         <button id="btnRotR" class="icon" title="선택한 사진 오른쪽으로 90° 회전">↻</button>
+        <button id="btnPlace" class="icon" title="사진 위치·크기 직접 조절 (끌어서 옮기기, 휠·두 손가락으로 크기)">✥</button>
         <button id="btnStageOpts" class="icon mobile-only" title="화면 설정 (비율·위치·효과)">⚙</button>
       </div>
     </div>
@@ -62,6 +74,7 @@
     </div>
   </section>
 
+  <div class="split split-v" id="splitPanel" title="끌어서 작업 패널 너비 조절 (두 번 누르면 자동)"></div>
   <aside class="panel">
     <nav class="tabs">
       <button data-tab="quick" class="active">간편만들기</button>
@@ -219,6 +232,7 @@
 </main>
 
 <footer class="timeline">
+  <div class="split split-h" id="splitTimeline" title="끌어서 타임라인 높이 조절 (두 번 누르면 자동)"></div>
   <div class="tl-head">
     <span class="tl-title">타임라인 (<span id="slideCount">0</span>장) <span class="muted">· 영상 길이 <span id="tlTotal">00:00</span></span></span>
     <div class="tl-actions">

@@ -223,6 +223,7 @@
     return S.mixBuilding;
   }
   async function play() {
+    if (S.placing && RV.app.setPlacing) RV.app.setPlacing(false);
     if (!S.tl.items.length) return;
     if (S.time >= S.tl.total - 0.02) S.time = 0;
     S.playing = true; $('#btnPlay').textContent = '⏸';
@@ -393,7 +394,7 @@
     $('#btnMoveL').disabled = i <= 0; $('#btnMoveR').disabled = i < 0 || i >= S.project.slides.length - 1;
   }
   function select(id, doSeek) {
-    S.selectedId = id; markSelection(); syncSlideControls();
+    S.selectedId = id; markSelection(); syncSlideControls(); if (S.placing && RV.app && RV.app.syncPlaceBar) RV.app.syncPlaceBar();
     const it = S.tl.byId[id];
     if (doSeek && it) seek(Math.min(it.end - 0.05, it.start + it.trIn + Math.min(0.7, it.duration * 0.3)));
   }
@@ -1083,7 +1084,7 @@
     });
 
     /* player */
-    on('#btnPlay', 'click', togglePlay); on('#btnStop', 'click', () => stopPlayback(true)); on('#preview', 'click', togglePlay);
+    on('#btnPlay', 'click', togglePlay); on('#btnStop', 'click', () => stopPlayback(true)); on('#preview', 'click', () => { if (!S.placing) togglePlay(); });
     on('#scrub', 'input', (e) => seek(+e.target.value / 1000 * S.tl.total));
     window.addEventListener('resize', () => { sizePreview(); drawFrame(); });
 
@@ -1149,6 +1150,115 @@
     on('#exDragFile', 'dragstart', (e) => { if (!lastExport) return; const f = lastExport.file; e.dataTransfer.effectAllowed = 'copy'; try { e.dataTransfer.setData('DownloadURL', (f.type || 'video/mp4') + ':' + f.name + ':' + lastExport.url); } catch (err) { /* ignore */ } });
     on('#btnMoveL', 'click', () => moveSlide(-1)); on('#btnMoveR', 'click', () => moveSlide(1));
     on('#btnStageOpts', 'click', (e) => { const onNow = document.body.classList.toggle('show-opts'); e.currentTarget.classList.toggle('on', onNow); sizePreview(); drawFrame(); });
+
+
+    /* ---------------- hand placement: drag / pinch / wheel on the preview ---------------- */
+    const PLACE_MIN = 0.2, PLACE_MAX = 6;
+    const placeSlide = () => { const s = selectedSlide(); return s && (s.type === 'photo' || s.type === 'video') ? s : null; };
+    const placeGeo = (s) => (S.renderer ? S.renderer.photoGeometry(s, p(), S.assets) : null);
+    const zoomToSlider = (z) => Math.round(Math.log2(z) * 40), sliderToZoom = (v) => Math.pow(2, v / 40);
+    let placeRaf = 0;
+    const placeRedraw = () => { if (placeRaf) return; placeRaf = requestAnimationFrame(() => { placeRaf = 0; drawFrame(); }); };
+    function syncPlaceBar() {
+      const s = placeSlide(); const on = !!S.placing && !!s;
+      $('#placeBar').hidden = !on; $('#placeHint').hidden = !on;
+      $('#btnPlace').classList.toggle('on', !!S.placing);
+      if (on) $('#plZoom').value = String(zoomToSlider(s.place ? s.place.zoom : 1));
+    }
+    /* keep a part of the photo inside the frame so it can always be grabbed again */
+    function clampPlace(s, g) {
+      const pl = s.place; if (!pl) return;
+      pl.zoom = RV.clamp(pl.zoom, PLACE_MIN, PLACE_MAX);
+      const mx = 0.5 + g.dw * pl.zoom / (2 * g.rect.w) - 0.08, my = 0.5 + g.dh * pl.zoom / (2 * g.rect.h) - 0.08;
+      pl.x = RV.clamp(pl.x, -mx, mx); pl.y = RV.clamp(pl.y, -my, my);
+    }
+    /* zoom by factor f around a point c (canvas px, relative to the frame centre) */
+    function placeZoomBy(s, g, f, c) {
+      const pl = s.place || (s.place = { zoom: 1, x: 0, y: 0 });
+      const nz = RV.clamp(pl.zoom * f, PLACE_MIN, PLACE_MAX); f = nz / pl.zoom;
+      const ox = pl.x * g.rect.w, oy = pl.y * g.rect.h, cx = c ? c.x : ox, cy = c ? c.y : oy;
+      pl.zoom = nz; pl.x = (cx + (ox - cx) * f) / g.rect.w; pl.y = (cy + (oy - cy) * f) / g.rect.h;
+      clampPlace(s, g);
+    }
+    function placeChanged() { placeRedraw(); scheduleSave(); syncPlaceBar(); }
+    function setPlacing(onNow) {
+      if (onNow) {
+        stopPlayback(false);
+        if (!placeSlide()) { const loc = RV.locate(S.tl, S.time); const s0 = loc && loc.b && loc.b.slide; if (s0 && !String(s0.id).startsWith('__')) select(s0.id, false); }
+        if (!placeSlide()) { toast('타임라인에서 사진이나 동영상을 먼저 골라 주세요.', true); return; }
+        /* show the photo itself: past the transition at its start */
+        const it = S.tl.byId[placeSlide().id]; if (it) { S.time = RV.clamp(it.start + Math.min(it.duration / 2, (p().transitionDuration || 0) + 0.2), 0, S.tl.total); }
+      }
+      S.placing = !!onNow; document.body.classList.toggle('placing', S.placing);
+      syncPlaceBar(); sizePreview(); drawFrame();
+    }
+    on('#btnPlace', 'click', () => setPlacing(!S.placing));
+    on('#plDone', 'click', () => setPlacing(false));
+    on('#plReset', 'click', () => { const s = placeSlide(); if (!s) return; delete s.place; placeChanged(); });
+    const placeTo = (key) => () => { const s = placeSlide(), g = s && placeGeo(s); if (!g) return; s.place = { zoom: g[key], x: 0, y: 0 }; clampPlace(s, g); placeChanged(); };
+    on('#plFit', 'click', placeTo('zoomToFit')); on('#plFill', 'click', placeTo('zoomToFill'));
+    on('#plIn', 'click', () => { const s = placeSlide(), g = s && placeGeo(s); if (g) { placeZoomBy(s, g, 1.12); placeChanged(); } });
+    on('#plOut', 'click', () => { const s = placeSlide(), g = s && placeGeo(s); if (g) { placeZoomBy(s, g, 1 / 1.12); placeChanged(); } });
+    on('#plZoom', 'input', (e) => { const s = placeSlide(), g = s && placeGeo(s); if (!g) return; const cur = s.place ? s.place.zoom : 1; placeZoomBy(s, g, sliderToZoom(+e.target.value) / cur); placeRedraw(); scheduleSave(); });
+    {
+      const cv = $('#preview'); const pts = new Map(); let last = null;   /* last: {x, y} for one finger, {x, y, d} for two */
+      const toCanvas = (e, g) => { const r = cv.getBoundingClientRect(); const k = g.W / r.width; return { x: (e.clientX - r.left) * k - (g.rect.x + g.rect.w / 2), y: (e.clientY - r.top) * k - (g.rect.y + g.rect.h / 2) }; };
+      const gesture = (g) => { const v = [...pts.values()]; if (v.length === 1) return { x: v[0].x, y: v[0].y }; const mx = (v[0].x + v[1].x) / 2, my = (v[0].y + v[1].y) / 2; return { x: mx, y: my, d: Math.hypot(v[0].x - v[1].x, v[0].y - v[1].y) }; };
+      cv.addEventListener('pointerdown', (e) => {
+        if (!S.placing) return; const s = placeSlide(), g = s && placeGeo(s); if (!g) return;
+        e.preventDefault(); try { cv.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+        pts.set(e.pointerId, toCanvas(e, g)); last = gesture(g); cv.classList.add('grabbing');
+      });
+      cv.addEventListener('pointermove', (e) => {
+        if (!S.placing || !pts.has(e.pointerId)) return; const s = placeSlide(), g = s && placeGeo(s); if (!g) return;
+        e.preventDefault(); pts.set(e.pointerId, toCanvas(e, g));
+        const now = gesture(g); if (!last || (now.d == null) !== (last.d == null)) { last = now; return; }
+        const pl = s.place || (s.place = { zoom: 1, x: 0, y: 0 });
+        pl.x += (now.x - last.x) / g.rect.w; pl.y += (now.y - last.y) / g.rect.h;
+        if (now.d != null && last.d > 4) placeZoomBy(s, g, now.d / last.d, now); else clampPlace(s, g);
+        last = now; placeRedraw();
+      });
+      const up = (e) => { if (!pts.has(e.pointerId)) return; pts.delete(e.pointerId); last = null; const s = placeSlide(), g = s && placeGeo(s); if (g && pts.size) last = gesture(g); if (!pts.size) { cv.classList.remove('grabbing'); scheduleSave(); syncPlaceBar(); } };
+      cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+      cv.addEventListener('wheel', (e) => {
+        if (!S.placing) return; const s = placeSlide(), g = s && placeGeo(s); if (!g) return;
+        e.preventDefault(); placeZoomBy(s, g, Math.exp(-e.deltaY * 0.0015), toCanvas(e, g)); placeChanged();
+      }, { passive: false });
+      cv.addEventListener('dblclick', () => { if (!S.placing) return; const s = placeSlide(); if (s) { delete s.place; placeChanged(); } });
+    }
+    window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && S.placing) setPlacing(false); });
+    RV.app.syncPlaceBar = syncPlaceBar; RV.app.setPlacing = setPlacing;
+
+    /* ---------------- free layout: drag the borders (sizes are remembered on this device) ---------------- */
+    {
+      const KEY = 'rv.layout', root = document.documentElement;
+      let saved = {}; try { saved = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (e) { saved = {}; }
+      const limits = {
+        panelW: () => [320, Math.max(320, Math.min(900, innerWidth - 420))],
+        tlH: () => [120, Math.max(120, Math.min(460, innerHeight - 320))],
+        pvH: () => [90, Math.max(90, innerHeight - 230)],
+      };
+      const cssVar = { panelW: '--panel-w', tlH: '--tl-h', pvH: '--pv-h' };
+      const apply = (k) => { if (saved[k] == null) root.style.removeProperty(cssVar[k]); else { const [lo, hi] = limits[k](); root.style.setProperty(cssVar[k], RV.clamp(saved[k], lo, hi) + 'px'); } };
+      const store = () => { try { localStorage.setItem(KEY, JSON.stringify(saved)); } catch (e) { /* ignore */ } };
+      let raf = 0; const relayout = () => { if (raf) return; raf = requestAnimationFrame(() => { raf = 0; sizePreview(); drawFrame(); }); };
+      Object.keys(cssVar).forEach(apply);
+      window.addEventListener('resize', () => Object.keys(cssVar).forEach(apply));
+      const bind = (sel, k, valueAt) => {
+        const el = $(sel);
+        el.addEventListener('pointerdown', (e) => {
+          e.preventDefault(); try { el.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+          el.classList.add('dragging'); document.body.classList.add('resizing');
+          const move = (ev) => { saved[k] = Math.round(valueAt(ev)); apply(k); relayout(); };
+          const end = () => { el.removeEventListener('pointermove', move); el.removeEventListener('pointerup', end); el.removeEventListener('pointercancel', end); el.classList.remove('dragging'); document.body.classList.remove('resizing'); store(); relayout(); };
+          el.addEventListener('pointermove', move); el.addEventListener('pointerup', end); el.addEventListener('pointercancel', end);
+        });
+        el.addEventListener('dblclick', () => { delete saved[k]; apply(k); store(); relayout(); });
+      };
+      bind('#splitPanel', 'panelW', (ev) => innerWidth - ev.clientX);
+      bind('#splitTimeline', 'tlH', (ev) => innerHeight - ev.clientY);
+      bind('#pvGrip', 'pvH', (ev) => ev.clientY - $('#previewWrap').getBoundingClientRect().top);
+    }
 
     /* operator usage */
     on('#btnUsage', 'click', openUsage); on('#usLoad', 'click', loadUsage);
