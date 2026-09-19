@@ -969,6 +969,29 @@
   function bind() {
     const p = () => S.project;
     const on = (sel, ev, fn) => $(sel).addEventListener(ev, fn);
+    /* Text fields: keep the model in step with every keystroke (cheap), refresh the views after a short pause.
+       While an IME composition is open (Korean on a phone keyboard) nothing heavy runs at all. */
+    let typingTimer = 0, composing = false;
+    const refreshSoon = (ms) => { clearTimeout(typingTimer); typingTimer = setTimeout(() => { if (composing) return; update(); }, ms); };
+    const bindTyping = (sel, apply) => {
+      const el = $(sel);
+      el.addEventListener('compositionstart', () => { composing = true; clearTimeout(typingTimer); });
+      el.addEventListener('compositionend', (e) => { composing = false; apply(e); refreshSoon(150); });
+      el.addEventListener('input', (e) => { apply(e); if (!(composing || e.isComposing)) refreshSoon(250); });
+      const flush = (e) => { composing = false; clearTimeout(typingTimer); apply(e); update(); };
+      el.addEventListener('change', flush); el.addEventListener('blur', flush);
+    };
+    /* Phones: while a text field in the work panel has the keyboard, give the panel the room (hide the timeline and the
+       transport, shrink the preview) and keep the field in view. */
+    const phoneLayout = window.matchMedia('(max-width: 900px), (pointer: coarse) and (max-width: 1100px)');
+    const isTextField = (el) => !!el && (el.tagName === 'TEXTAREA' || (el.tagName === 'INPUT' && /^(text|search|url|email|password|number)?$/i.test(el.getAttribute('type') || '')));
+    const setTypingMode = (onNow) => { if (document.body.classList.contains('typing') === onNow) return; document.body.classList.toggle('typing', onNow); sizePreview(); drawFrame(); };
+    $('.panel').addEventListener('focusin', (e) => {
+      if (!phoneLayout.matches || !isTextField(e.target)) return;
+      setTypingMode(true);
+      setTimeout(() => { if (document.activeElement === e.target) e.target.scrollIntoView({ block: 'center' }); }, 350);
+    });
+    $('.panel').addEventListener('focusout', () => { setTimeout(() => { if (!isTextField(document.activeElement)) setTypingMode(false); }, 120); });
     $$('.tabs button').forEach((b) => (b.onclick = () => showTab(b.dataset.tab)));
     $$('[data-close]').forEach((b) => (b.onclick = () => closeModal(b.dataset.close)));
     on('#btnGoDetail', 'click', () => showTab('caption'));
@@ -1024,10 +1047,15 @@
     on('#fitToMusic', 'change', (e) => { p().fitToMusic = e.target.checked; if (e.target.checked) { p().beatSync = false; $('#beatSync').checked = false; } update(); syncSlideControls(); });
     on('#beatSync', 'change', (e) => { p().beatSync = e.target.checked; if (e.target.checked) { p().fitToMusic = false; $('#fitToMusic').checked = false; } update(); syncSlideControls(); });
     const titleInputs = () => { const o = p().opening, en = p().ending; o.enabled = $('#openingOn').checked; o.title = $('#openingTitle').value; o.subtitle = $('#openingSub').value; en.enabled = $('#endingOn').checked; en.title = $('#endingTitle').value; en.subtitle = $('#endingSub').value; o.style = en.style = $('#titleStyle').value; o.duration = en.duration = RV.clamp(+$('#titleDuration').value || 3, 1, 15); update(); };
-    ['#openingOn', '#openingTitle', '#openingSub', '#endingOn', '#endingTitle', '#endingSub', '#titleStyle', '#titleDuration'].forEach((s) => on(s, 'input', titleInputs));
+    const titleModel = () => { const o = p().opening, en = p().ending; o.title = $('#openingTitle').value; o.subtitle = $('#openingSub').value; en.title = $('#endingTitle').value; en.subtitle = $('#endingSub').value; };
+    ['#openingOn', '#endingOn', '#titleStyle', '#titleDuration'].forEach((s) => on(s, 'input', titleInputs));
+    ['#openingTitle', '#openingSub', '#endingTitle', '#endingSub'].forEach((s) => bindTyping(s, titleModel));
+    /* show the card being edited, so the text appears in the preview as it is typed */
+    const showCard = (key) => () => { const it = S.tl.byId[key]; if (it && !S.playing) seek(it.start + Math.min(0.9, it.duration / 2)); };
+    ['#openingTitle', '#openingSub'].forEach((s) => on(s, 'focus', showCard('__opening'))); ['#endingTitle', '#endingSub'].forEach((s) => on(s, 'focus', showCard('__ending')));
 
     /* caption tab */
-    on('#capText', 'input', (e) => { const s = selectedSlide(); if (!s) return; s.caption.text = e.target.value; update(); });
+    bindTyping('#capText', (e) => { const s = selectedSlide(); if (s) s.caption.text = e.target.value; });
     on('#capFont', 'change', (e) => setCaption('font', e.target.value)); on('#capSize', 'change', (e) => setCaption('size', +e.target.value)); on('#capColor', 'input', (e) => setCaption('color', e.target.value));
     [['#capBold', 'bold'], ['#capItalic', 'italic'], ['#capShadow', 'shadow'], ['#capOutline', 'outline'], ['#capBox', 'box']].forEach(([sel, key]) => on(sel, 'click', () => { const s = selectedSlide(); const c = s ? s.caption : p().captionDefaults; setCaption(key, !c[key]); }));
     on('#capApplyAll', 'click', () => { const s = selectedSlide(); const src = s ? s.caption : p().captionDefaults; const keys = ['font', 'size', 'color', 'bold', 'italic', 'shadow', 'outline', 'box', 'pos', 'effect']; keys.forEach((k) => (p().captionDefaults[k] = src[k])); p().slides.forEach((x) => keys.forEach((k) => (x.caption[k] = src[k]))); update(); toast('자막 스타일을 모든 화면에 적용했습니다.'); });
