@@ -130,7 +130,7 @@
         const iw = swap ? img.height : img.width, ih = swap ? img.width : img.height;
         let scale;
         if (fit === 'fill') scale = Math.max(rect.w / iw, rect.h / ih);
-        else if (fit === 'original') scale = Math.min(1, rect.w / iw, rect.h / ih) * (W / 1920);
+        else if (fit === 'original') scale = Math.min(W / 1920, rect.w / iw, rect.h / ih);
         else scale = Math.min(rect.w / iw, rect.h / ih);
         const dw = iw * scale, dh = ih * scale;
         /* manual placement (s.place = {zoom, x, y}: zoom on top of the fit, offset as a fraction of the frame) */
@@ -139,7 +139,7 @@
         if (project.kenBurns && s.kb && s.type !== 'video') {
           const e = RV.easeInOut(u), k = project.kbIntensity == null ? 1 : project.kbIntensity;
           z = 1 + (RV.lerp(s.kb.z0, s.kb.z1, e) - 1) * k;
-          if (!pl) {
+          if (!pl && !this.noPan) {
             const slackX = Math.max(0, (dw * z - rect.w) / 2), slackY = Math.max(0, (dh * z - rect.h) / 2);
             px = RV.lerp(s.kb.x0, s.kb.x1, e) * slackX * k;
             py = RV.lerp(s.kb.y0, s.kb.y1, e) * slackY * k;
@@ -180,7 +180,7 @@
       const rot = ((s.rotation || 0) % 360 + 360) % 360, swap = rot === 90 || rot === 270;
       const iw = swap ? img.height : img.width, ih = swap ? img.width : img.height;
       const fitScale = Math.min(rect.w / iw, rect.h / ih), fillScale = Math.max(rect.w / iw, rect.h / ih);
-      const base = fit === 'fill' ? fillScale : fit === 'original' ? Math.min(1, rect.w / iw, rect.h / ih) * (W / 1920) : fitScale;
+      const base = fit === 'fill' ? fillScale : fit === 'original' ? Math.min(W / 1920, rect.w / iw, rect.h / ih) : fitScale;
       return { W, H, rect, dw: iw * base, dh: ih * base, zoomToFit: fitScale / base, zoomToFill: fillScale / base };
     }
 

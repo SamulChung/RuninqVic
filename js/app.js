@@ -36,6 +36,7 @@
 
   /* ---------------- project lifecycle ---------------- */
   async function setProject(p, opts) {
+    if (S.placing && RV.app && RV.app.setPlacing) RV.app.setPlacing(false);
     S.project = p; S.selectedId = null; S.time = 0; stopPlayback();
     S.mixDirty = true; S.mix = null; S.beats = [];
     for (const id of Array.from(S.assets.images.keys())) releaseAsset(id);
@@ -248,7 +249,16 @@
     if (reset) { S.time = 0; drawFrame(); }
   }
   function togglePlay() { if (S.playing) stopPlayback(false); else play(); }
-  function seek(t) { const was = S.playing; if (was) stopPlayback(false); S.time = RV.clamp(t, 0, S.tl.total); drawFrame(); if (was) play(); }
+  function seek(t) {
+    const was = S.playing; if (was) stopPlayback(false);
+    S.time = RV.clamp(t, 0, S.tl.total);
+    if (S.placing) {   /* hand placement always edits the photo that is on screen */
+      const loc = RV.locate(S.tl, S.time), sl = loc && loc.b.slide;
+      if (sl && (sl.type === 'photo' || sl.type === 'video')) { if (sl.id !== S.selectedId) select(sl.id, false); }
+      else if (RV.app.setPlacing) RV.app.setPlacing(false);
+    }
+    drawFrame(); if (was) play();
+  }
   function highlightCurrent() {
     const loc = RV.locate(S.tl, S.time); if (!loc) return;
     const id = loc.b.slide.id;
@@ -392,6 +402,7 @@
     ['#btnDelete', '#btnRotL', '#btnRotR'].forEach((id) => ($(id).disabled = !has));
     const i = selectedIndex();
     $('#btnMoveL').disabled = i <= 0; $('#btnMoveR').disabled = i < 0 || i >= S.project.slides.length - 1;
+    if (S.placing && RV.app && RV.app.setPlacing) { if (selectedSlide()) RV.app.syncPlaceBar(); else RV.app.setPlacing(false); }
   }
   function select(id, doSeek) {
     S.selectedId = id; markSelection(); syncSlideControls(); if (S.placing && RV.app && RV.app.syncPlaceBar) RV.app.syncPlaceBar();
@@ -712,13 +723,16 @@
   /* what to do instead when the share sheet cannot take the file */
   function showSendAlt(why) {
     if (!lastExport) return;
-    const mb = lastExport.file.size / 1048576, box = $('#exSendAlt');
-    box.innerHTML = '<b>' + why + '</b><ol>' +
-      '<li><b>' + escHtml(lastExport.file.name) + ' 다운로드</b>를 눌러 휴대폰에 저장한 뒤, 카카오톡 채팅방의 <b>＋ › 파일</b>(또는 앨범)에서 그 영상을 골라 보내세요. 이 방법은 ' + KAKAO_LIMIT_MB + ' MB까지 보낼 수 있습니다.</li>' +
-      (mb > SHARE_TARGET_MB ? '<li>또는 <b>카카오톡 전송용</b>으로 다시 만들면 50 MB 이하로 줄어들어 [카카오톡 등으로 보내기]가 바로 됩니다.</li>' : '') + '</ol>' +
+    const f = lastExport.file, mb = f.size / 1048576, box = $('#exSendAlt'), saved = lastExport.savedToDisk;
+    const shareName = platform.mobile ? '카카오톡 등으로 보내기' : '공유 창으로 보내기';
+    const how = platform.mobile
+      ? (saved ? '방금 저장한 <b>' + escHtml(f.name) + '</b> 파일을' : '<b>' + escHtml(f.name) + ' 다운로드</b>를 눌러 휴대폰에 저장한 뒤,') + ' 카카오톡 채팅방의 <b>＋ › 파일</b>(또는 앨범)에서 그 영상을 골라 보내세요.'
+      : '위의 <b>파일 아이콘을 카카오톡 PC 채팅창으로 끌어다 놓으세요</b>. 또는 채팅창의 파일 전송(📎)에서 ' + (saved ? '저장한' : '다운로드한') + ' 파일을 고르면 됩니다.';
+    box.innerHTML = '<b>' + why + '</b><ol><li>' + how + ' 이 방법은 ' + KAKAO_LIMIT_MB + ' MB까지 보낼 수 있습니다.</li>' +
+      (mb > SHARE_TARGET_MB ? '<li>또는 <b>카카오톡 전송용</b>으로 다시 만들면 50 MB 이하로 줄어들어 [' + shareName + ']가 바로 됩니다.</li>' : '') + '</ol>' +
       '<div class="alt-btns">' + (mb > SHARE_TARGET_MB ? '<button id="exRemakeKakao" class="primary">카카오톡 전송용으로 다시 만들기</button>' : '') + '</div>';
     box.hidden = false;
-    const dl = $('#exDownload'); dl.href = lastExport.url; dl.download = lastExport.file.name; dl.textContent = lastExport.file.name + ' 다운로드 (' + mb.toFixed(1) + ' MB)'; dl.hidden = false;
+    if (!saved) { const dl = $('#exDownload'); dl.href = lastExport.url; dl.download = f.name; dl.textContent = f.name + ' 다운로드 (' + mb.toFixed(1) + ' MB)'; dl.hidden = false; }
     const rb = $('#exRemakeKakao'); if (rb) rb.onclick = () => { box.hidden = true; openExport('kakao'); };
   }
   async function shareLastExport() {
@@ -769,7 +783,7 @@
     $('#exportForm').hidden = false; $('#exportProgress').hidden = true; $('#exportDone').hidden = true;
     $('#exStart').hidden = false; $('#exClose').hidden = true; $('#exCancel').hidden = false; $('#exStart').disabled = false;
     openModal('exportModal');
-    if (typeof preset === 'string') applyPreset(preset); else refreshExportInfo();
+    if (typeof preset === 'string') applyPreset(preset); else refreshExportInfo(true);
     if (!exportCaps) exportCaps = await RV.exportCapabilities();
     refreshExportInfo();
   }
@@ -807,7 +821,12 @@
   }
   async function startExport() {
     const es = exportSettings(); const p = S.project;
-    p.export = { res: es.res, fps: es.fps, quality: es.quality, bitrate: 0, name: $('#exName').value.trim() || p.name }; scheduleSave();
+    const exName = $('#exName').value.trim() || p.name;
+    if ($('#exPreset').value === 'kakao') {   /* one-off small remake: keep the ordinary size and quality for the next export */
+      const keep = (isMobile() && !p.export.name) ? { res: '720p', fps: 30, quality: 'medium' } : p.export;
+      p.export = { res: keep.res, fps: keep.fps, quality: keep.quality, bitrate: 0, name: exName };
+    } else p.export = { res: es.res, fps: es.fps, quality: es.quality, bitrate: 0, name: exName };
+    scheduleSave();
     const ext = exportCaps && exportCaps.container === 'webm' ? 'webm' : 'mp4';
     const fname = (p.export.name || '내 영상').replace(/[\\/:*?"<>|]/g, '_') + '.' + ext;
     let handle = null;
@@ -1023,14 +1042,27 @@
     const on = (sel, ev, fn) => $(sel).addEventListener(ev, fn);
     /* Text fields: keep the model in step with every keystroke (cheap), refresh the views after a short pause.
        While an IME composition is open (Korean on a phone keyboard) nothing heavy runs at all. */
-    let typingTimer = 0, composing = false;
-    const refreshSoon = (ms) => { clearTimeout(typingTimer); typingTimer = setTimeout(() => { if (composing) return; update(); }, ms); };
-    const bindTyping = (sel, apply) => {
+    let typingTimer = 0, typingRaf = 0, composing = false, dirty = false, ptrDown = false, flushPending = false;
+    const refresh = () => { if (composing) return; dirty = false; update(); };
+    const refreshSoon = (ms) => { clearTimeout(typingTimer); typingTimer = setTimeout(refresh, ms); };
+    const redrawSoon = () => { if (typingRaf) return; typingRaf = requestAnimationFrame(() => { typingRaf = 0; drawFrame(); }); };   /* preview only: no timeline rebuild, no save */
+    /* leaving a field by pressing on something: rebuild the timeline only after that click has been delivered,
+       otherwise the pressed thumbnail is replaced between mousedown and mouseup and the click is lost */
+    window.addEventListener('pointerdown', () => { ptrDown = true; }, true);
+    const ptrEnd = () => { ptrDown = false; if (flushPending) { flushPending = false; setTimeout(refresh, 0); } };
+    window.addEventListener('pointerup', ptrEnd, true); window.addEventListener('pointercancel', ptrEnd, true); window.addEventListener('blur', ptrEnd);
+    const bindTyping = (sel, write) => {
       const el = $(sel);
+      const apply = (e) => { if (!S.restoring) write(e); };   /* while a project loads the fields still show the old one */
       el.addEventListener('compositionstart', () => { composing = true; clearTimeout(typingTimer); });
-      el.addEventListener('compositionend', (e) => { composing = false; apply(e); refreshSoon(150); });
-      el.addEventListener('input', (e) => { apply(e); if (!(composing || e.isComposing)) refreshSoon(250); });
-      const flush = (e) => { composing = false; clearTimeout(typingTimer); apply(e); update(); };
+      el.addEventListener('compositionend', (e) => { composing = false; apply(e); dirty = true; refreshSoon(150); });
+      el.addEventListener('input', (e) => { apply(e); dirty = true; if (composing || e.isComposing) redrawSoon(); else refreshSoon(250); });
+      const flush = (e) => {
+        composing = false; clearTimeout(typingTimer); if (S.restoring) return; apply(e);
+        if (!dirty) return;
+        if (ptrDown) { flushPending = true; return; }
+        refresh();
+      };
       el.addEventListener('change', flush); el.addEventListener('blur', flush);
     };
     /* Phones: while a text field in the work panel has the keyboard, give the panel the room (hide the timeline and the
@@ -1038,12 +1070,19 @@
     const phoneLayout = window.matchMedia('(max-width: 900px), (pointer: coarse) and (max-width: 1100px)');
     const isTextField = (el) => !!el && (el.tagName === 'TEXTAREA' || (el.tagName === 'INPUT' && /^(text|search|url|email|password|number)?$/i.test(el.getAttribute('type') || '')));
     const setTypingMode = (onNow) => { if (document.body.classList.contains('typing') === onNow) return; document.body.classList.toggle('typing', onNow); sizePreview(); drawFrame(); };
-    $('.panel').addEventListener('focusin', (e) => {
+    const panelEl = $('.panel'); let vvMin = 0;
+    panelEl.addEventListener('focusin', (e) => {
       if (!phoneLayout.matches || !isTextField(e.target)) return;
-      setTypingMode(true);
+      vvMin = 0; setTypingMode(true);
       setTimeout(() => { if (document.activeElement === e.target) e.target.scrollIntoView({ block: 'center' }); }, 350);
     });
-    $('.panel').addEventListener('focusout', () => { setTimeout(() => { if (!isTextField(document.activeElement)) setTypingMode(false); }, 120); });
+    panelEl.addEventListener('focusout', () => { setTimeout(() => { const el = document.activeElement; if (!(isTextField(el) && panelEl.contains(el))) setTypingMode(false); }, 120); });
+    /* keyboard closed with Back / Done while the field keeps the focus */
+    if (window.visualViewport) window.visualViewport.addEventListener('resize', () => {
+      if (!document.body.classList.contains('typing')) { vvMin = 0; return; }
+      const h = window.visualViewport.height; vvMin = vvMin ? Math.min(vvMin, h) : h;
+      if (h > vvMin + 150) { vvMin = 0; const el = document.activeElement; if (isTextField(el) && panelEl.contains(el)) el.blur(); else setTypingMode(false); }
+    });
     $$('.tabs button').forEach((b) => (b.onclick = () => showTab(b.dataset.tab)));
     $$('[data-close]').forEach((b) => (b.onclick = () => closeModal(b.dataset.close)));
     on('#btnGoDetail', 'click', () => showTab('caption'));
@@ -1084,13 +1123,20 @@
     });
 
     /* player */
-    on('#btnPlay', 'click', togglePlay); on('#btnStop', 'click', () => stopPlayback(true)); on('#preview', 'click', () => { if (!S.placing) togglePlay(); });
+    on('#btnPlay', 'click', togglePlay); on('#btnStop', 'click', () => { if (S.placing) RV.app.setPlacing(false); stopPlayback(true); }); on('#preview', 'click', () => { if (!S.placing) togglePlay(); });
     on('#scrub', 'input', (e) => seek(+e.target.value / 1000 * S.tl.total));
     window.addEventListener('resize', () => { sizePreview(); drawFrame(); });
 
     /* stage options */
     on('#aspect', 'change', (e) => { p().aspect = e.target.value; sizePreview(); S.renderer.invalidate(); update(); });
-    on('#fit', 'change', (e) => { p().fit = e.target.value; update(); });
+    on('#fit', 'change', (e) => {
+      const geo = (s) => (S.renderer ? S.renderer.photoGeometry(s, p(), S.assets) : null);
+      const placed = p().slides.filter((s) => s.place), before = placed.map(geo);
+      p().fit = e.target.value;
+      placed.forEach((s, i) => { const g0 = before[i], g1 = geo(s); if (g0 && g1 && g1.dw > 0) s.place.zoom = (s.place.zoom || 1) * g0.dw / g1.dw; });
+      if (S.placing) RV.app.syncPlaceBar();
+      update();
+    });
     on('#kenBurns', 'change', (e) => { p().kenBurns = e.target.checked; update(); });
     on('#blurFill', 'change', (e) => { p().blurFill = e.target.checked; update(); });
 
@@ -1190,6 +1236,7 @@
         const it = S.tl.byId[placeSlide().id]; if (it) { S.time = RV.clamp(it.start + Math.min(it.duration / 2, (p().transitionDuration || 0) + 0.2), 0, S.tl.total); }
       }
       S.placing = !!onNow; document.body.classList.toggle('placing', S.placing);
+      if (S.renderer) S.renderer.noPan = S.placing;
       syncPlaceBar(); sizePreview(); drawFrame();
     }
     on('#btnPlace', 'click', () => setPlacing(!S.placing));
@@ -1234,7 +1281,7 @@
       const KEY = 'rv.layout', root = document.documentElement;
       let saved = {}; try { saved = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (e) { saved = {}; }
       const limits = {
-        panelW: () => [320, Math.max(320, Math.min(900, innerWidth - 420))],
+        panelW: () => [320, Math.max(460, Math.min(900, innerWidth - 560))],
         tlH: () => [120, Math.max(120, Math.min(460, innerHeight - 320))],
         pvH: () => [90, Math.max(90, innerHeight - 230)],
       };
@@ -1243,7 +1290,7 @@
       const store = () => { try { localStorage.setItem(KEY, JSON.stringify(saved)); } catch (e) { /* ignore */ } };
       let raf = 0; const relayout = () => { if (raf) return; raf = requestAnimationFrame(() => { raf = 0; sizePreview(); drawFrame(); }); };
       Object.keys(cssVar).forEach(apply);
-      window.addEventListener('resize', () => Object.keys(cssVar).forEach(apply));
+      window.addEventListener('resize', () => { Object.keys(cssVar).forEach(apply); relayout(); });
       const bind = (sel, k, valueAt) => {
         const el = $(sel);
         el.addEventListener('pointerdown', (e) => {
