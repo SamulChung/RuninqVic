@@ -2,7 +2,7 @@
 (function (root) {
   const RV = (root.RV = root.RV || {});
 
-  RV.VERSION = '1.6.3';
+  RV.VERSION = '1.6.4';
 
   RV.ASPECTS = {
     '16:9': { w: 16, h: 9, label: '와이드 (16:9)' },
@@ -12,6 +12,7 @@
   };
 
   RV.RESOLUTIONS = {
+    '480p':  { short: 480,  label: 'SD 480p (작은 용량)' },
     '720p':  { short: 720,  label: 'HD 720p' },
     '1080p': { short: 1080, label: 'Full HD 1080p (추천)' },
     '1440p': { short: 1440, label: 'QHD 1440p' },

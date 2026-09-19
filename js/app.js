@@ -662,12 +662,28 @@
   let exportAbort = null, exportCaps = null, lastExport = null; /* lastExport: { file, url, savedToDisk } */
   const platform = (() => { const ua = navigator.userAgent || ''; const ios = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); const android = /Android/i.test(ua); return { ios, android, mobile: ios || android || isMobile() }; })();
   const KAKAO_LIMIT_MB = 300;
+  /* Chrome-based phone browsers refuse navigator.share() above 50 MB in total (the call fails with "Permission denied") */
+  const SHARE_LIMIT_MB = 50, SHARE_TARGET_MB = 44;
+  const inApp = (() => { const ua = navigator.userAgent || ''; if (/KAKAOTALK/i.test(ua)) return 'kakaotalk'; return /NAVER\(inapp|Instagram|FBAN|FBAV|FB_IAB|Line\/|DaumApps|everytimeApp|; wv\)/i.test(ua) ? 'other' : ''; })();
+  const shareTooBig = (file) => !platform.ios && platform.mobile && file.size > SHARE_LIMIT_MB * 1048576;
+  function openInBrowser() {
+    const url = location.href.split('#')[0];
+    if (inApp === 'kakaotalk') location.href = 'kakaotalk://web/openExternal?url=' + encodeURIComponent(url);
+    else if (platform.android) location.href = 'intent://' + url.replace(/^https?:\/\//, '') + '#Intent;scheme=https;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;end';
+    else toast('화면의 메뉴(⋯ 또는 공유 아이콘)에서 "Safari로 열기"를 눌러 주세요.', true);
+  }
+  function showInAppNotice() {
+    if (!inApp || !platform.mobile) return;
+    $('#inAppMsg').innerHTML = (inApp === 'kakaotalk' ? '지금은 <b>카카오톡 안에서 열린 화면</b>입니다. ' : '지금은 <b>앱 안에서 열린 화면</b>입니다. ') + '이 화면에서는 완성한 영상을 <b>저장하거나 카카오톡으로 보내는 기능이 막혀</b> 있습니다. 크롬이나 삼성 인터넷' + (platform.ios ? '(아이폰은 Safari)' : '') + '으로 열어서 만들어 주세요.';
+    if (platform.ios && inApp !== 'kakaotalk') $('#inAppOpen').textContent = '여는 방법 보기';
+    openModal('inAppModal');
+  }
   /* how to send the finished video, per device */
   function sendHintHtml(file, canShare) {
     const mb = file.size / 1048576;
     const warn = mb > KAKAO_LIMIT_MB ? '<div class="warn">이 파일은 ' + mb.toFixed(0) + ' MB입니다. 카카오톡은 한 번에 약 ' + KAKAO_LIMIT_MB + ' MB까지만 보낼 수 있으니, 크기를 720p로 낮추거나 품질을 "중"으로 바꿔 다시 만들어 보세요.</div>' : '';
     if (platform.ios) return warn + '<ol><li><b>카카오톡 등으로 보내기</b>를 누르고 <b>카카오톡</b>을 고른 뒤 채팅방(또는 나와의 채팅)을 선택하세요. 메시지·메일·AirDrop도 같은 창에서 고를 수 있습니다.</li><li>사진 앱에 보관하려면 같은 창에서 <b>비디오 저장</b>을 누르세요.</li></ol>';
-    if (platform.android) return warn + '<ol><li><b>카카오톡 등으로 보내기</b>를 누르고 <b>카카오톡</b>을 고른 뒤 채팅방(또는 나와의 채팅)을 선택하세요. 밴드·메시지·메일·드라이브도 같은 창에서 고를 수 있습니다.</li><li>갤러리에 보관하려면 같은 창에서 <b>갤러리</b>(또는 Google 포토)를 고르세요.</li></ol>';
+    if (platform.android) return warn + (mb > SHARE_LIMIT_MB ? '' : '<ol><li><b>카카오톡 등으로 보내기</b>를 누르고 <b>카카오톡</b>을 고른 뒤 채팅방(또는 나와의 채팅)을 선택하세요. 밴드·메시지·메일·드라이브도 같은 창에서 고를 수 있습니다.</li><li>갤러리에 보관하려면 같은 창에서 <b>갤러리</b>(또는 Google 포토)를 고르세요.</li></ol>');
     return warn + '<ol><li><b>카카오톡 PC</b>: 채팅방을 연 뒤 위의 <b>파일 아이콘을 채팅창으로 끌어다 놓으세요</b>. 잘 안 되면 채팅창의 파일 전송(📎)에서 저장한 파일을 고르면 됩니다.</li>' +
       (canShare ? '<li><b>공유 창으로 보내기</b>는 Windows 공유 창을 엽니다. 메일, 근거리 공유, 휴대폰과 연결 등으로 보낼 수 있습니다.</li>' : '') +
       '<li>휴대폰 카카오톡으로 보내려면 "나와의 채팅"에 올려 두면 폰에서 바로 받을 수 있습니다.</li></ol>';
@@ -686,11 +702,34 @@
     $('#exShare').textContent = platform.mobile ? '💬 카카오톡 등으로 보내기' : '📤 공유 창으로 보내기';
     const chip = $('#exDragFile'); chip.hidden = platform.mobile; chip.href = lastExport.url; chip.download = f.name; $('#exDragName').textContent = f.name;
     $('#exSendHint').innerHTML = sendHintHtml(f, can);
+    $('#exSendAlt').hidden = true;
+    if (platform.mobile && inApp) {
+      $('#exSendAlt').innerHTML = '<b>' + (inApp === 'kakaotalk' ? '카카오톡 안에서 열린 화면' : '앱 안에서 열린 화면') + '에서는 영상을 저장하거나 보낼 수 없습니다.</b><br>크롬이나 삼성 인터넷으로 열어서 다시 만들어 주세요.<div class="alt-btns" style="margin-top:8px"><button id="exOpenBrowser" class="primary">크롬 · 삼성 인터넷으로 열기</button></div>';
+      $('#exSendAlt').hidden = false; $('#exOpenBrowser').onclick = openInBrowser;
+    } else if (can && shareTooBig(f)) showSendAlt('이 영상은 ' + (f.size / 1048576).toFixed(0) + ' MB입니다. 휴대폰 브라우저의 보내기 창은 ' + SHARE_LIMIT_MB + ' MB까지만 받을 수 있습니다.');
+  }
+  /* what to do instead when the share sheet cannot take the file */
+  function showSendAlt(why) {
+    if (!lastExport) return;
+    const mb = lastExport.file.size / 1048576, box = $('#exSendAlt');
+    box.innerHTML = '<b>' + why + '</b><ol>' +
+      '<li><b>' + escHtml(lastExport.file.name) + ' 다운로드</b>를 눌러 휴대폰에 저장한 뒤, 카카오톡 채팅방의 <b>＋ › 파일</b>(또는 앨범)에서 그 영상을 골라 보내세요. 이 방법은 ' + KAKAO_LIMIT_MB + ' MB까지 보낼 수 있습니다.</li>' +
+      (mb > SHARE_TARGET_MB ? '<li>또는 <b>카카오톡 전송용</b>으로 다시 만들면 50 MB 이하로 줄어들어 [카카오톡 등으로 보내기]가 바로 됩니다.</li>' : '') + '</ol>' +
+      '<div class="alt-btns">' + (mb > SHARE_TARGET_MB ? '<button id="exRemakeKakao" class="primary">카카오톡 전송용으로 다시 만들기</button>' : '') + '</div>';
+    box.hidden = false;
+    const dl = $('#exDownload'); dl.href = lastExport.url; dl.download = lastExport.file.name; dl.textContent = lastExport.file.name + ' 다운로드 (' + mb.toFixed(1) + ' MB)'; dl.hidden = false;
+    const rb = $('#exRemakeKakao'); if (rb) rb.onclick = () => { box.hidden = true; openExport('kakao'); };
   }
   async function shareLastExport() {
     if (!lastExport) return;
-    try { await navigator.share({ files: [lastExport.file], title: lastExport.file.name.replace(/\.[^.]+$/, '') }); }
-    catch (e) { if (e.name !== 'AbortError') toast('이 기기에서는 바로 보내기를 쓸 수 없습니다. 파일을 저장한 뒤 카카오톡에서 첨부해 주세요.', true); }
+    const f = lastExport.file;
+    if (shareTooBig(f)) { showSendAlt('이 영상은 ' + (f.size / 1048576).toFixed(0) + ' MB입니다. 휴대폰 브라우저의 보내기 창은 ' + SHARE_LIMIT_MB + ' MB까지만 받을 수 있습니다.'); return; }
+    try { await navigator.share({ files: [f], title: f.name.replace(/\.[^.]+$/, '') }); }
+    catch (e) {
+      if (e.name === 'AbortError') return;
+      console.warn('share failed', e);
+      showSendAlt('보내기 창을 열지 못했습니다 (' + escHtml(e.name || '오류') + ').');
+    }
   }
   /* reopen the done view for the last finished video (top-bar 보내기 button) */
   function openSendPanel() {
@@ -716,7 +755,7 @@
       '<li><b>파일 다운로드</b>를 누르면 휴대폰의 <b>다운로드</b> 폴더에 저장됩니다. <b>내 파일</b> 앱 › 다운로드, 또는 Chrome 메뉴(⋮) › 다운로드에서 찾을 수 있습니다.</li></ol>';
     return '<b>파일 다운로드</b>를 누르면 브라우저의 다운로드 폴더에 저장됩니다. Chrome·Edge 오른쪽 위 ↓ 아이콘에서 확인할 수 있습니다.';
   }
-  async function openExport() {
+  async function openExport(preset) {
     if (!S.tl.items.length) { toast('먼저 사진을 추가하세요.', true); return; }
     stopPlayback(false);
     const p = S.project;
@@ -724,17 +763,28 @@
     $('#exRes').value = p.export.res; $('#exFps').value = String(p.export.fps); $('#exQuality').value = p.export.quality;
     $('#exPreset').value = 'pc';
     if (isMobile() && !p.export.name) { $('#exPreset').value = 'sns'; $('#exRes').value = '720p'; $('#exFps').value = '30'; $('#exQuality').value = 'medium'; }
+    if (typeof preset === 'string') $('#exPreset').value = preset;
     $('#exSendBox').hidden = true; $('#exSaveHint').hidden = true;
     $('#exportForm').hidden = false; $('#exportProgress').hidden = true; $('#exportDone').hidden = true;
     $('#exStart').hidden = false; $('#exClose').hidden = true; $('#exCancel').hidden = false; $('#exStart').disabled = false;
     openModal('exportModal');
-    refreshExportInfo();
+    if (typeof preset === 'string') applyPreset(preset); else refreshExportInfo();
     if (!exportCaps) exportCaps = await RV.exportCapabilities();
     refreshExportInfo();
   }
   function applyPreset(v) {
     const map = { pc: ['1080p', 30, 'high'], youtube: ['1080p', 30, 'high'], sns: ['720p', 30, 'medium'], '4k': ['2160p', 30, 'high'] };
     if (map[v]) { $('#exRes').value = map[v][0]; $('#exFps').value = String(map[v][1]); $('#exQuality').value = map[v][2]; }
+    if (v === 'kakao') {
+      /* fit the whole file into the share limit: (target size / length) minus the audio track and container overhead */
+      const budget = SHARE_TARGET_MB * 8 * 1048576 / Math.max(1, S.tl.total) - 192000 - 24000;
+      const res = budget >= 1.0e6 ? '720p' : '480p';
+      $('#exRes').value = res; $('#exFps').value = '30'; $('#exQuality').value = 'medium';
+      const sz = RV.canvasSize(S.project.aspect, RV.RESOLUTIONS[res].short);
+      const bps = RV.clamp(budget, 0.3e6, RV.suggestBitrate(sz.w, sz.h, 30, 'medium'));
+      refreshExportInfo(true); $('#exBitrate').value = (Math.floor(bps / 1e5) / 10).toFixed(1); refreshExportInfo(false);
+      return;
+    }
     refreshExportInfo(true);
   }
   function exportSettings() {
@@ -745,12 +795,13 @@
   }
   function refreshExportInfo(resetBitrate) {
     const es = exportSettings();
-    if (resetBitrate || !$('#exBitrate').value) $('#exBitrate').value = (RV.suggestBitrate(es.w, es.h, es.fps, es.quality) / 1e6).toFixed(0);
+    if (resetBitrate || !$('#exBitrate').value) $('#exBitrate').value = String(Math.max(0.3, Math.round(RV.suggestBitrate(es.w, es.h, es.fps, es.quality) / 1e5) / 10));
     const es2 = exportSettings();
     const mb = (es2.bitrate + 192000) * S.tl.total / 8 / 1048576;
     let codec = '코덱 확인 중…';
     if (exportCaps) codec = exportCaps.ok ? ('코덱: ' + exportCaps.video + (exportCaps.audio ? ' + ' + exportCaps.audio : ' (오디오 인코더 없음)') + ' → ' + exportCaps.container.toUpperCase()) : exportCaps.reason;
     $('#exInfo').innerHTML = '해상도 <b>' + es2.w + ' × ' + es2.h + '</b> · ' + es2.fps + ' fps · 길이 ' + RV.fmtTime(S.tl.total) + ' · 예상 용량 약 <b>' + (mb < 1 ? mb.toFixed(2) : mb.toFixed(0)) + ' MB</b><br>' + codec + (window.showSaveFilePicker ? '' : '<br>저장 위치를 물어볼 수 없는 브라우저라 다운로드 폴더에 저장됩니다.');
+    if ($('#exPreset').value === 'kakao' && mb > SHARE_LIMIT_MB) $('#exInfo').innerHTML += '<br><span style="color:#ffb86b">영상이 길어서 50 MB 이하로 줄일 수 없습니다. 만든 뒤 [다운로드]로 저장하고 카카오톡 채팅방의 ＋ › 파일에서 보내 주세요.</span>';
     if (exportCaps && !exportCaps.ok) $('#exStart').disabled = true;
   }
   async function startExport() {
@@ -1093,6 +1144,7 @@
     on('#exBitrate', 'change', () => refreshExportInfo(false));
     on('#exStart', 'click', startExport);
     on('#exShare', 'click', shareLastExport);
+    on('#inAppOpen', 'click', openInBrowser);
     on('#btnSend', 'click', openSendPanel);
     on('#exDragFile', 'dragstart', (e) => { if (!lastExport) return; const f = lastExport.file; e.dataTransfer.effectAllowed = 'copy'; try { e.dataTransfer.setData('DownloadURL', (f.type || 'video/mp4') + ':' + f.name + ':' + lastExport.url); } catch (err) { /* ignore */ } });
     on('#btnMoveL', 'click', () => moveSlide(-1)); on('#btnMoveR', 'click', () => moveSlide(1));
@@ -1165,9 +1217,10 @@
     } else {
       syncAllControls(); update({ skipSave: true }); markSelection();
     }
+    showInAppNotice();
   }
   window.addEventListener('DOMContentLoaded', init);
 
   /* debug/test hooks */
-  RV.app = { S, addPhotos, addMusic, update, select, play, stopPlayback, seek, openExport, startExport, exportSettings, setProject, addTextSlide, platform, saveHintHtml, sendHintHtml, openSendPanel, getLastExport: () => lastExport, renderUsage };
+  RV.app = { S, addPhotos, addMusic, update, select, play, stopPlayback, seek, openExport, startExport, exportSettings, setProject, addTextSlide, platform, saveHintHtml, sendHintHtml, openSendPanel, getLastExport: () => lastExport, renderUsage, shareLastExport, renderSendPanel, setLastExport, openInBrowser, inApp: () => inApp };
 })();

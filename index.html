@@ -241,9 +241,9 @@
     <div class="modal-h">동영상 만들기<button class="close" data-close="exportModal">✕</button></div>
     <div class="modal-body" id="exportForm">
       <div class="row"><label class="wide">파일 이름 <input type="text" id="exName"></label></div>
-      <div class="row"><label>용도 <select id="exPreset"><option value="pc">PC · TV용 (1080p)</option><option value="youtube">유튜브 (1080p 고화질)</option><option value="sns">스마트폰 · SNS (720p)</option><option value="4k">4K UHD</option><option value="custom">사용자 설정</option></select></label></div>
+      <div class="row"><label>용도 <select id="exPreset"><option value="pc">PC · TV용 (1080p)</option><option value="youtube">유튜브 (1080p 고화질)</option><option value="sns">스마트폰 · SNS (720p)</option><option value="kakao">카카오톡 전송용 (50MB 이하)</option><option value="4k">4K UHD</option><option value="custom">사용자 설정</option></select></label></div>
       <div class="row"><label>크기 <select id="exRes"></select></label><label>프레임 <select id="exFps"><option value="24">24 fps</option><option value="30" selected>30 fps</option><option value="60">60 fps</option></select></label></div>
-      <div class="row"><label>품질 <select id="exQuality"><option value="low">하 (작은 용량)</option><option value="medium">중</option><option value="high" selected>상 (추천)</option></select></label><label>비트레이트 <input type="number" id="exBitrate" min="1" max="120" step="1"> Mbps</label></div>
+      <div class="row"><label>품질 <select id="exQuality"><option value="low">하 (작은 용량)</option><option value="medium">중</option><option value="high" selected>상 (추천)</option></select></label><label>비트레이트 <input type="number" id="exBitrate" min="0.3" max="120" step="0.1"> Mbps</label></div>
       <div class="ex-info" id="exInfo"></div>
     </div>
     <div class="modal-body" id="exportProgress" hidden>
@@ -261,6 +261,7 @@
           <button id="exShare" class="primary">💬 카카오톡 등으로 보내기</button>
           <a id="exDragFile" class="drag-file" draggable="true" hidden title="이 파일을 카카오톡 PC 채팅창으로 끌어다 놓으세요"><span class="df-ico">🎞</span><span class="df-name" id="exDragName"></span><small>카카오톡 채팅창으로 끌어다 놓기</small></a>
         </div>
+        <div class="send-alt" id="exSendAlt" hidden></div>
         <div class="send-hint" id="exSendHint"></div>
       </div>
       <div class="save-hint" id="exSaveHint" hidden></div>
@@ -327,6 +328,18 @@
       <button id="mgStart" class="primary">✨ 만들기</button>
       <button id="mgAdd" class="primary" hidden>＋ 배경음악으로 넣기</button>
     </div>
+  </div>
+</div>
+
+<!-- in-app browser notice (KakaoTalk, Naver, Instagram ... cannot save or share files) -->
+<div class="modal" id="inAppModal">
+  <div class="modal-box">
+    <div class="modal-h">다른 브라우저로 열어 주세요<button class="close" data-close="inAppModal">✕</button></div>
+    <div class="modal-body">
+      <p id="inAppMsg" style="line-height:1.7;margin:0 0 10px"></p>
+      <p class="hint" style="margin:0">지금 화면에서 만들던 내용은 새 브라우저로 옮겨지지 않으니, 사진을 넣기 전에 먼저 옮겨 주세요.</p>
+    </div>
+    <div class="modal-f"><button class="ghost" data-close="inAppModal">그냥 계속</button><button id="inAppOpen" class="primary">크롬 · 삼성 인터넷으로 열기</button></div>
   </div>
 </div>
 
