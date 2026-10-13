@@ -1,0 +1,184 @@
+/* RuninqVic - mobile version (phones): step-by-step screens.
+   Every rule is scoped to html.m-ui, so the PC version is not affected. */
+.m-app { display: none; }
+
+html.m-ui body { display: block; height: 100dvh; overflow: hidden; padding: 0; }
+html.m-ui .topbar, html.m-ui .layout, html.m-ui footer.timeline, html.m-ui #welcome { display: none !important; }
+html.m-ui .m-app { display: flex; flex-direction: column; height: 100dvh; max-width: 760px; margin: 0 auto; background: var(--bg); position: relative; font-size: 15px; }
+html.m-ui .desktop-only { display: none !important; }
+
+/* ---- top bar ---- */
+.m-top { flex: 0 0 auto; box-sizing: content-box; display: flex; align-items: center; gap: 8px; height: 52px; padding: 0 6px 0 12px; padding-top: env(safe-area-inset-top); background: var(--bg2); border-bottom: 1px solid var(--line); }
+.m-logo { width: 28px; height: 28px; border-radius: 7px; flex: 0 0 auto; }
+.m-name-slot { flex: 1 1 auto; min-width: 0; }
+html.m-ui .m-name-slot .proj-name { width: 100%; min-height: 40px; font-size: 16px; font-weight: 700; background: transparent; border: 1px solid transparent; border-radius: 8px; padding: 4px 8px; color: var(--text); }
+html.m-ui .m-name-slot .proj-name:focus { border-color: var(--line2); background: var(--bg); }
+.m-icon { flex: 0 0 auto; width: 46px; height: 46px; display: grid; place-items: center; font-size: 24px; line-height: 1; background: transparent; border: 0; border-radius: 10px; color: var(--text); }
+.m-icon:active { background: var(--bg3); }
+
+/* ---- step indicator ---- */
+.m-steps { flex: 0 0 auto; display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; padding: 6px 8px; background: var(--bg2); border-bottom: 1px solid var(--line); }
+.m-steps button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 50px; padding: 4px 0; border-radius: 10px; background: transparent; border: 0; color: var(--muted); font-size: 13px; font-weight: 600; }
+.m-steps button b { position: relative; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--bg3); color: var(--text); font-size: 13px; }
+/* a finished step shows a check mark over its number */
+.m-steps button.done b::after { content: '✓'; position: absolute; inset: 0; display: grid; place-items: center; border-radius: 50%; background: #2e7a4d; color: #fff; font-size: inherit; }
+.m-steps button.on { color: var(--text); background: rgba(255, 106, 31, .13); }
+.m-steps button.on b { background: var(--accent); color: #fff; }
+
+/* ---- preview (the shared stage) ---- */
+.m-stage { flex: 0 0 auto; background: #0d0e11; position: relative; }
+html.m-ui .stage { display: block; background: #0d0e11; min-width: 0; }
+html.m-ui .preview-wrap { height: var(--pv-h, min(56.25vw, 30dvh)); max-height: max(90px, calc(100dvh - 420px)); padding: 6px 8px; min-height: 0; }
+html.m-ui body.placing .preview-wrap { max-height: none; }
+html.m-ui body.typing .preview-wrap { height: min(40vw, 20dvh); }
+html.m-ui body.placing .preview-wrap { height: max(var(--pv-h, 0px), min(78vw, 50dvh)); }
+html.m-ui.m-sheet-open body.placing .preview-wrap { height: min(56.25vw, 28dvh); }
+html.m-ui .controls { display: flex; align-items: center; gap: 8px; padding: 4px 8px 6px; flex-wrap: nowrap; }
+html.m-ui .controls .tc { flex: 0 0 auto; min-width: 0; font-size: 12px; white-space: nowrap; }
+html.m-ui .controls .tc .sep, html.m-ui .controls #tcTotal { display: none; }
+html.m-ui .controls #scrub { flex: 1 1 auto; min-width: 0; }
+html.m-ui .ctl-btns { display: flex; gap: 4px; flex: 0 0 auto; }
+html.m-ui .ctl-btns .vsep { display: none; }
+html.m-ui .ctl-btns button.icon { width: 40px; height: 40px; }
+html.m-ui #btnStop { display: none; }
+html.m-ui .mobile-only { display: inline-block; }
+html.m-ui .stage-opts { display: none; flex-wrap: wrap; gap: 8px 14px; padding: 8px 10px; }
+html.m-ui body.show-opts .stage-opts { display: flex; }
+html.m-ui .pv-grip { display: grid; place-items: center; position: absolute; left: 50%; bottom: -10px; transform: translateX(-50%); width: 96px; height: 22px; z-index: 7; touch-action: none; cursor: row-resize; }
+html.m-ui .pv-grip i { display: block; width: 44px; height: 5px; border-radius: 3px; background: var(--line2); border: 1px solid rgba(255, 255, 255, .18); }
+html.m-ui .split { display: none; }
+
+/* ---- step pages ---- */
+.m-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; padding: 14px 14px 24px; }
+.m-page { display: none; }
+.m-page.on { display: block; }
+.m-h { font-size: 18px; font-weight: 800; margin: 0 0 12px; }
+.m-hint { color: var(--muted); font-size: 13px; line-height: 1.6; margin: 10px 2px 14px; }
+.m-big { min-height: 52px; padding: 0 14px; font-size: 16px; font-weight: 700; border-radius: 12px; }
+.m-wide { width: 100%; margin-top: 10px; }
+.m-big-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.m-link { display: block; width: 100%; margin-top: 16px; background: transparent; border: 0; color: var(--accent2); font-size: 14px; text-decoration: underline; min-height: 44px; }
+.m-empty { padding: 26px 12px; text-align: center; color: var(--muted); font-size: 14px; line-height: 1.7; border: 2px dashed var(--line2); border-radius: 14px; }
+
+/* photo grid */
+.m-grid-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 4px 0 10px; font-weight: 700; }
+.m-grid-head select { min-height: 40px; font-size: 14px; max-width: 55%; }
+.m-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.m-tile { scroll-margin-top: 82px; scroll-margin-bottom: 8px; position: relative; aspect-ratio: 1 / 1; padding: 0; border: 3px solid transparent; border-radius: 12px; overflow: hidden; background: #222; }
+.m-tile img { width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }
+.m-tile .m-tt { display: grid; place-items: center; width: 100%; height: 100%; padding: 6px; font-size: 12px; color: #fff; background: linear-gradient(135deg, #0f0c29, #24243e); text-align: center; }
+.m-tile .n { position: absolute; left: 5px; top: 5px; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 11px; background: rgba(0, 0, 0, .65); color: #fff; font-size: 12px; font-weight: 700; display: grid; place-items: center; }
+.m-tile .d { position: absolute; right: 5px; bottom: 5px; padding: 1px 6px; border-radius: 8px; background: rgba(0, 0, 0, .6); color: #fff; font-size: 11px; }
+.m-tile .v { position: absolute; right: 5px; top: 5px; padding: 1px 6px; border-radius: 8px; background: var(--accent); color: #fff; font-size: 11px; font-weight: 700; }
+.m-tile .c { position: absolute; left: 5px; bottom: 5px; padding: 1px 6px; border-radius: 8px; background: rgba(0, 0, 0, .6); color: #fff; font-size: 11px; }
+.m-tile.sel { border-color: var(--accent); }
+.m-sel-bar { position: sticky; top: -14px; z-index: 2; display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; margin: 0 -6px 10px; padding: 6px; background: var(--bg2); border: 1px solid var(--line2); border-radius: 14px; box-shadow: 0 8px 18px rgba(0, 0, 0, .35); }
+.m-sel-bar button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: 56px; padding: 2px; font-size: 12px; border-radius: 10px; }
+.m-sel-bar button i { font-style: normal; font-size: 18px; line-height: 1; }
+.m-sel-bar button.danger { color: #ff8e8e; }
+
+/* reused PC blocks (music, duration, opening/ending) with phone-sized controls */
+html.m-ui .m-body .step { background: var(--bg2); border: 1px solid var(--line); border-radius: 14px; padding: 12px; margin: 0 0 12px; }
+html.m-ui .m-body .step-h { font-size: 15px; font-weight: 700; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+html.m-ui .m-body .step-h .num { display: none; }
+html.m-ui .m-body .step-btns { display: inline-flex; gap: 6px; margin-left: auto; }
+html.m-ui .m-body button.mini { min-height: 42px; padding: 0 12px; font-size: 14px; }
+html.m-ui .m-body input[type=text], html.m-ui .m-body input[type=number], html.m-ui .m-body select { min-height: 44px; font-size: 16px; }
+html.m-ui .m-body input[type=number] { width: 84px; }
+html.m-ui .m-body .row { flex-wrap: wrap; gap: 8px; }
+html.m-ui .m-body .chk { min-height: 40px; display: inline-flex; align-items: center; gap: 8px; }
+html.m-ui .m-body input[type=checkbox] { width: 22px; height: 22px; }
+html.m-ui .m-body .music-list li { min-height: 48px; }
+html.m-ui .m-body .title-row input[type=text] { flex: 1 1 100%; min-width: 0; }
+html.m-ui .m-body .title-row .chk { flex: 1 1 100%; font-weight: 700; }
+html.m-ui .m-body .title-media { padding-left: 0; }
+html.m-ui .m-body .title-media .tm-chip { max-width: 100%; }
+html.m-ui .m-body .hint { font-size: 13px; }
+
+/* finish step */
+.m-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 10px; }
+.m-summary div { background: var(--bg2); border: 1px solid var(--line); border-radius: 12px; padding: 10px 6px; text-align: center; }
+.m-summary b { display: block; font-size: 20px; }
+.m-summary span { font-size: 12px; color: var(--muted); }
+.m-notes { font-size: 13px; line-height: 1.6; color: #ffb86b; margin: 0 2px 10px; }
+.m-notes:empty { display: none; }
+.m-quality { display: grid; gap: 8px; }
+.m-q { display: grid; grid-template-columns: 26px 1fr; grid-template-rows: auto auto; column-gap: 8px; align-items: center; padding: 12px; border: 2px solid var(--line2); border-radius: 14px; background: var(--bg2); }
+.m-q input { grid-row: 1 / 3; width: 22px; height: 22px; accent-color: var(--accent); }
+.m-q b { font-size: 15px; }
+.m-q span { font-size: 12.5px; color: var(--muted); }
+.m-q.on { border-color: var(--accent); background: rgba(255, 106, 31, .08); }
+
+/* ---- bottom navigation ---- */
+.m-nav { flex: 0 0 auto; display: grid; grid-template-columns: 1fr 2fr; gap: 10px; padding: 8px 12px calc(8px + env(safe-area-inset-bottom)); background: var(--bg2); border-top: 1px solid var(--line); }
+.m-nav.first { grid-template-columns: 1fr; }
+.m-nav.first #mPrev { display: none; }
+
+/* ---- 꾸미기 sheet (the PC work panel, shown as a bottom sheet) ---- */
+.m-sheet { position: relative; z-index: 30; flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; background: var(--bg2); border-radius: 16px 16px 0 0; box-shadow: 0 -14px 40px rgba(0, 0, 0, .6); padding-bottom: env(safe-area-inset-bottom); }
+.m-sheet-h { flex: 0 0 auto; display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--line); font-weight: 800; font-size: 15px; position: relative; }
+.m-sheet-h::before { content: ''; position: absolute; left: 50%; top: 4px; transform: translateX(-50%); width: 40px; height: 4px; border-radius: 2px; background: var(--line2); }
+.m-sheet-h .grow { flex: 1; }
+.m-sheet-h button { min-height: 40px; padding: 0 18px; font-size: 15px; border-radius: 10px; }
+.m-sheet-body { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+html.m-ui .m-sheet-body .panel { display: grid; grid-template-rows: auto minmax(0, 1fr); flex: 1 1 auto; min-height: 0; border: 0; background: transparent; }
+html.m-ui .m-sheet-body .tabs [data-tab=quick] { display: none; }
+html.m-ui .m-sheet-body .tabs { grid-template-columns: repeat(4, 1fr); }
+html.m-ui .m-sheet-body .tabs button { min-height: 44px; font-size: 14px; }
+html.m-ui.m-sheet-open .m-steps { display: none; }
+html.m-ui.m-sheet-open .m-nav, html.m-ui.m-sheet-open .m-body, html.m-ui.m-sheet-open .pv-grip { display: none; }
+html.m-ui .m-sheet-body .panel-title { display: none; }
+html.m-ui.m-sheet-open .preview-wrap { height: min(56.25vw, 28dvh); }
+html.m-ui.m-sheet-open body.typing .preview-wrap { height: min(40vw, 18dvh); }
+html.m-ui body.typing .controls, html.m-ui body.typing .stage-opts { display: none; }
+
+/* ---- typing in a step page: the keyboard needs the room ---- */
+html.m-ui.m-typing .m-steps, html.m-ui.m-typing .m-nav, html.m-ui.m-typing .controls { display: none; }
+html.m-ui.m-typing .preview-wrap { height: min(36vw, 17dvh); }
+html.m-ui.m-typing .pv-grip { display: none; }
+
+/* placing a photo by hand: the preview gets the room */
+html.m-ui body.placing .m-steps, html.m-ui body.placing .m-nav { display: none; }
+
+/* ---- menu ---- */
+.m-scrim { position: fixed; inset: 0; z-index: 55; background: rgba(0, 0, 0, .35); }
+.m-menu { position: fixed; z-index: 60; top: calc(54px + env(safe-area-inset-top)); right: max(8px, calc((100vw - 760px) / 2 + 8px)); min-width: 236px; display: flex; flex-direction: column; padding: 6px; background: var(--bg2); border: 1px solid var(--line2); border-radius: 14px; box-shadow: 0 16px 40px rgba(0, 0, 0, .55); }
+.m-menu button { text-align: left; min-height: 48px; padding: 0 12px; font-size: 15px; background: transparent; border: 0; border-radius: 10px; color: var(--text); }
+.m-menu button:active { background: var(--bg3); }
+.m-menu hr { border: 0; border-top: 1px solid var(--line); margin: 4px 6px; }
+
+/* modals sized for phones */
+html.m-ui .modal-box { width: 96vw; max-height: 92dvh; border-radius: 14px; }
+
+/* rotate lives in the photo bar of step 1, so the time bar gets the room */
+html.m-ui #btnRotL, html.m-ui #btnRotR { display: none; }
+
+/* short phones (iPhone SE, small Androids, landscape): compact header, steps and preview */
+@media (max-height: 700px) {
+  html.m-ui .m-top { height: 46px; }
+  html.m-ui .m-steps { padding: 4px 8px; }
+  html.m-ui .m-steps button { flex-direction: row; gap: 6px; min-height: 38px; }
+  html.m-ui .m-steps button b { width: 20px; height: 20px; font-size: 12px; }
+  html.m-ui .preview-wrap { height: var(--pv-h, min(56.25vw, 27dvh)); max-height: max(80px, calc(100dvh - 380px)); }
+  html.m-ui .m-top { height: 46px; }
+  html.m-ui .ctl-btns button.icon { width: 36px; height: 36px; }
+  html.m-ui .m-nav { padding-top: 6px; padding-bottom: calc(6px + env(safe-area-inset-bottom)); }
+  html.m-ui .m-nav .m-big { min-height: 46px; }
+  .m-body { padding-top: 10px; }
+}
+
+/* landscape phones (m-land is set from how the phone is held): the whole screen scrolls, the bottom buttons stay */
+@media (max-height: 500px) {
+  html.m-ui.m-land .m-app { overflow-y: auto; }
+  html.m-ui.m-land .m-body { flex: 0 0 auto; overflow: visible; }
+  html.m-ui.m-land .m-nav { position: sticky; bottom: 0; z-index: 5; }
+  html.m-ui.m-land .preview-wrap { height: 62dvh; max-height: none; }
+  html.m-ui.m-land body.placing .preview-wrap, html.m-ui.m-land.m-sheet-open body.placing .preview-wrap { height: 62dvh; }
+  html.m-ui.m-land .pv-grip { display: none; }
+  html.m-ui.m-land .m-sheet { flex: 0 0 auto; min-height: 80dvh; }
+  html.m-ui.m-land .m-sel-bar { top: 0; }
+}
+
+/* PC version on a narrow phone: no room for the 📱 button (the help dialog has [📱 모바일 버전]) */
+@media (max-width: 440px) { #btnMobileUI { display: none !important; } }
+.m-link.m-addtext { margin-top: 6px; text-align: left; padding: 0 2px; }

@@ -22,6 +22,8 @@
   const MAX_EDGE = 4096;
 
   /* ---------------- helpers ---------------- */
+  /* tell other screens (the mobile version) that something changed: rv:update, rv:select, rv:sync */
+  function emit(name) { try { document.dispatchEvent(new CustomEvent('rv:' + name)); } catch (e) { /* ignore */ } }
   function toast(msg, isErr) {
     const box = $('#toast'); const d = document.createElement('div'); d.textContent = msg; if (isErr) d.className = 'err';
     box.appendChild(d); setTimeout(() => d.remove(), isErr ? 5000 : 2600);
@@ -153,6 +155,7 @@
     refreshInfo();
     drawFrame();
     if (!o.skipSave && !S.restoring) scheduleSave();
+    emit('update');
   }
 
   function collectBeats() {
@@ -496,6 +499,7 @@
     const i = selectedIndex();
     $('#btnMoveL').disabled = i <= 0; $('#btnMoveR').disabled = i < 0 || i >= S.project.slides.length - 1;
     if (S.placing && RV.app && RV.app.setPlacing) { if (selectedSlide()) RV.app.syncPlaceBar(); else RV.app.setPlacing(false); }
+    emit('select');
   }
   function select(id, doSeek) {
     S.selectedId = id; markSelection(); syncSlideControls(); if (S.placing && RV.app && RV.app.syncPlaceBar) RV.app.syncPlaceBar();
@@ -549,6 +553,7 @@
     $('#fadeIn').value = p.music.fadeIn; $('#fadeOut').value = p.music.fadeOut; $('#trimStart').value = p.music.trimStart || 0; $('#musicLoop').checked = p.music.loop;
     $('#duckVideo').checked = p.music.duckVideo !== false; $('#duckLevel').value = p.music.duckLevel == null ? 0.25 : p.music.duckLevel; $('#duckLevelVal').textContent = Math.round((p.music.duckLevel == null ? 0.25 : p.music.duckLevel) * 100) + '%';
     renderMusicLists(); sizePreview(); syncSlideControls();
+    emit('sync');
   }
   function syncSlideControls() {
     const p = S.project, s = selectedSlide();
@@ -1420,7 +1425,9 @@
     }
 
     /* operator usage */
-    on('#btnUsage', 'click', openUsage); on('#usLoad', 'click', loadUsage);
+    on('#btnUsage', 'click', openUsage);
+    on('#btnMobileUI', 'click', () => RV.switchUI && RV.switchUI('mobile'));
+    on('#btnUiSwitch', 'click', () => RV.switchUI && RV.switchUI(document.documentElement.classList.contains('m-ui') ? 'pc' : 'mobile')); on('#usLoad', 'click', loadUsage);
     /* bookmarkable shortcut for the operator: https://.../#usage */
     const usageByHash = () => { if (location.hash === '#usage') openUsage(); };
     window.addEventListener('hashchange', usageByHash); setTimeout(usageByHash, 0);
@@ -1491,5 +1498,6 @@
   window.addEventListener('DOMContentLoaded', init);
 
   /* debug/test hooks */
-  RV.app = { S, addPhotos, addMusic, update, select, play, stopPlayback, seek, openExport, startExport, exportSettings, setProject, addTextSlide, platform, saveHintHtml, sendHintHtml, openSendPanel, getLastExport: () => lastExport, renderUsage, shareLastExport, renderSendPanel, setLastExport, openInBrowser, inApp: () => inApp, setTitleMedia, removeTitleMedia, selectTitle, trimTarget };
+  RV.app = { S, addPhotos, addMusic, update, select, play, stopPlayback, seek, openExport, startExport, exportSettings, setProject, addTextSlide, platform, saveHintHtml, sendHintHtml, openSendPanel, getLastExport: () => lastExport, renderUsage, shareLastExport, renderSendPanel, setLastExport, openInBrowser, inApp: () => inApp, setTitleMedia, removeTitleMedia, selectTitle, trimTarget,
+    moveSlide, rotateSelected, deleteSelected, sortSlides, showTab, openModal, closeModal, toast, sizePreview, drawFrame, selectedSlide };
 })();

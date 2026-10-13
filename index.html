@@ -15,16 +15,108 @@
 <meta name="description" content="사진과 음악으로 MP4 슬라이드쇼 동영상을 만드는 무료 웹앱. 제작: (주)텐에이아이 www.tenai.kr">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='15' fill='%23CBDCF7'/%3E%3Ccircle cx='32' cy='32' r='17.5' fill='%23000000'/%3E%3Cpath d='M32 22.5 L41.5 38.5 H22.5 Z' fill='%23FFFFFF' stroke='%23FFFFFF' stroke-width='2' stroke-linejoin='round'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="css/app.css">
+<link rel="stylesheet" href="css/mobile.css">
+<script>
+/* Phones get the mobile version (step by step); tablets and PCs get the PC version.
+   ?ui=mobile / ?ui=pc or the switch buttons remember a choice on this device. */
+(function () {
+  var ua = navigator.userAgent || '', pref = null;
+  var phone = /iPhone|iPod|Windows Phone|Android.+Mobile|Mobile.+Android/i.test(ua) ||
+    (!!window.matchMedia && matchMedia('(pointer: coarse)').matches && Math.min(screen.width, screen.height) < 560);
+  var q = null;
+  try { q = new URLSearchParams(location.search).get('ui'); } catch (e) { q = null; }
+  if (q === 'pc' || q === 'mobile') { pref = q; try { localStorage.setItem('rv.ui', q); } catch (e) { /* the URL keeps the choice */ } }
+  else { try { pref = localStorage.getItem('rv.ui'); } catch (e) { pref = null; } }
+  if (pref ? pref === 'mobile' : phone) document.documentElement.classList.add('m-ui');
+})();
+</script>
 </head>
 <body>
+<!-- ======================= mobile version (phones): step-by-step screens ======================= -->
+<div class="m-app" id="mApp">
+  <header class="m-top">
+    <img class="m-logo" src="assets/logo.svg" alt="RuninqVic" width="28" height="28">
+    <div class="m-name-slot" id="mNameSlot"></div>
+    <button id="mMenuBtn" class="m-icon" aria-label="메뉴" title="메뉴">⋯</button>
+  </header>
+  <nav class="m-steps" id="mSteps" aria-label="단계">
+    <button data-step="1"><b>1</b><span>사진</span></button>
+    <button data-step="2"><b>2</b><span>음악</span></button>
+    <button data-step="3"><b>3</b><span>제목</span></button>
+    <button data-step="4"><b>4</b><span>완성</span></button>
+  </nav>
+  <div class="m-stage" id="mStage"></div>
+  <main class="m-body" id="mBody">
+    <section class="m-page" data-step="1">
+      <h2 class="m-h">사진과 동영상을 골라 주세요</h2>
+      <div class="m-big-btns">
+        <button id="mAddPhotos" class="m-big primary">📷 사진 고르기</button>
+        <button id="mAddVideos" class="m-big">🎬 동영상 고르기</button>
+      </div>
+      <button id="mAddText" class="m-link m-addtext">➕ 글자만 있는 화면 넣기 (장 제목 · 인사말)</button>
+      <p class="m-hint">사진 선택 화면에서 여러 장을 차례로 눌러 한 번에 고를 수 있습니다. 갤러리가 열리면 사진을 <b>길게 눌러</b> 선택을 시작하세요.</p>
+      <div class="m-grid-head"><span id="mPhotoCount">사진 0장</span><select id="mSort" aria-label="순서 정렬"><option value="">순서 바꾸기…</option><option value="date">찍은 날짜순</option><option value="name">이름순</option><option value="reverse">거꾸로</option><option value="shuffle">무작위로 섞기</option></select></div>
+      <div class="m-empty" id="mEmpty">아직 고른 사진이 없습니다.<br>위의 <b>사진 고르기</b>를 눌러 시작하세요.</div>
+      <div class="m-sel-bar" id="mSelBar" hidden>
+        <button data-act="left"><i>◀</i>앞으로</button>
+        <button data-act="right"><i>▶</i>뒤로</button>
+        <button data-act="rotate"><i>↻</i>회전</button>
+        <button data-act="decor"><i id="mDecorIco">✏</i><span id="mDecorLbl">꾸미기</span></button>
+        <button data-act="delete" class="danger"><i>🗑</i>빼기</button>
+      </div>
+      <div class="m-grid" id="mGrid"></div>
+    </section>
+    <section class="m-page" data-step="2">
+      <div id="mMusicSlot"></div>
+      <div id="mDurationSlot"></div>
+    </section>
+    <section class="m-page" data-step="3">
+      <div id="mTitlesSlot"></div>
+    </section>
+    <section class="m-page" data-step="4">
+      <h2 class="m-h">영상을 만들어 보내요</h2>
+      <div class="m-summary" id="mSummary"></div>
+      <div class="m-notes" id="mNotes"></div>
+      <div class="m-quality" id="mQuality">
+        <label class="m-q on"><input type="radio" name="mq" value="kakao" checked><b>카카오톡 보내기용</b><span>50MB 이하로 만들어 바로 보낼 수 있습니다 (추천)</span></label>
+        <label class="m-q"><input type="radio" name="mq" value="sns"><b>보통 화질 · 720p</b><span>휴대폰으로 보기 좋은 크기</span></label>
+        <label class="m-q"><input type="radio" name="mq" value="pc"><b>고화질 · 1080p</b><span>TV·PC용, 만드는 데 시간이 더 걸립니다</span></label>
+      </div>
+      <button id="mResend" class="m-big m-wide" hidden>📤 방금 만든 영상 다시 보내기</button>
+      <button id="mDecorAll" class="m-link">✨ 전환 효과 · 디자인 · 음악 세부 설정</button>
+    </section>
+  </main>
+  <footer class="m-nav" id="mNav">
+    <button id="mPrev" class="m-big">‹ 이전</button>
+    <button id="mNext" class="m-big primary">다음 ›</button>
+  </footer>
+  <div class="m-sheet" id="mSheet" hidden>
+    <div class="m-sheet-h"><span id="mSheetTitle">꾸미기</span><span class="grow"></span><button id="mSheetDone" class="primary">완료</button></div>
+    <div class="m-sheet-body" id="mSheetBody"></div>
+  </div>
+  <div class="m-scrim" id="mScrim" hidden></div>
+  <div class="m-menu" id="mMenu" hidden role="menu">
+    <button data-m="new">🆕 새로 만들기</button>
+    <button data-m="open">📂 프로젝트 파일 열기</button>
+    <button data-m="save">💾 프로젝트 파일로 저장</button>
+    <hr>
+    <button data-m="help">❔ 도움말</button>
+    <button data-m="manual">📖 사용설명서</button>
+    <button data-m="install" hidden>📲 홈 화면에 추가</button>
+    <button data-m="usage">📊 사용량(운영자)</button>
+    <hr>
+    <button data-m="pc">🖥 PC 버전으로 보기</button>
+  </div>
+</div>
 <header class="topbar">
-  <div class="brand"><img class="logo" src="assets/logo.svg" alt="" width="28" height="28"><span class="name">RuninqVic</span><span class="ver">v1.8</span><a class="maker-logo" href="https://www.tenai.kr" target="_blank" rel="noopener" title="제작: (주)텐에이아이 · www.tenai.kr"><img src="assets/tenai-logo-dark.png" alt="TenAI"></a></div>
+  <div class="brand"><img class="logo" src="assets/logo.svg" alt="" width="28" height="28"><span class="name">RuninqVic</span><span class="ver">v1.9</span><a class="maker-logo" href="https://www.tenai.kr" target="_blank" rel="noopener" title="제작: (주)텐에이아이 · www.tenai.kr"><img src="assets/tenai-logo-dark.png" alt="TenAI"></a></div>
   <input id="projName" class="proj-name" title="프로젝트 이름" spellcheck="false">
   <div class="top-actions">
     <button id="btnNew" title="새 프로젝트 (Ctrl+N)"><span class="ico">🆕</span><span class="txt">새로 만들기</span></button>
     <button id="btnOpen" title="프로젝트 파일 열기 (Ctrl+O)"><span class="ico">📂</span><span class="txt">열기</span></button>
     <button id="btnSave" title="프로젝트 파일로 저장 (Ctrl+S)"><span class="ico">💾</span><span class="txt">저장</span></button>
     <button id="btnHelp" title="도움말 (F1)"><span class="ico">❔</span><span class="txt">도움말</span></button>
+    <button id="btnMobileUI" class="mobile-only" title="모바일 버전으로 보기 (단계별 화면)"><span class="ico">📱</span><span class="txt">모바일</span></button>
     <button id="btnSend" hidden title="방금 만든 영상을 카카오톡 등으로 보내기"><span class="ico">📤</span><span class="txt">보내기</span></button>
     <button id="btnExport" class="primary" title="동영상 만들기 (Ctrl+E)"><span class="ico">🎬</span><span class="txt">동영상 만들기</span></button>
   </div>
@@ -91,13 +183,13 @@
           <div class="hint desktop-only">폴더에서 여러 개를 끌어다 놓아도 됩니다. 사진 JPG · PNG · WEBP, 동영상 MP4 · WEBM · MOV. 동영상은 자막 탭에서 구간을 잘라 쓸 수 있습니다.</div>
           <div class="hint mobile-only"><b>여러 장 한 번에:</b> 사진 선택 화면에서 사진을 차례로 눌러 여러 장을 고른 뒤 완료(추가)를 누르세요. 갤러리 앱이 열리면 사진을 <b>길게 눌러</b> 선택을 시작합니다. 동영상은 자막 탭에서 구간을 잘라 쓸 수 있습니다.</div>
         </div>
-        <div class="step">
+        <div class="step" id="qsMusic">
           <div class="step-h"><span class="num">2</span>배경음악을 골라보세요. <span class="muted" id="musicTotal">(00:00)</span>
             <span class="step-btns"><button id="btnAddMusic" class="mini" title="음악 파일 추가">＋ 곡 추가</button><button id="btnRemoveMusic" class="mini" title="선택한 음악 제거">－</button><button id="btnGenMusic" class="mini gen" title="가사와 스타일로 AI 음악 만들기">AI</button></span></div>
           <ul class="music-list" id="musicList"><li class="empty">여기에 음악을 넣어보세요. (MP3 · M4A · WAV · OGG)</li></ul>
           <div class="hint">음악 파일이 없으면 <b>AI</b> 버튼에서 <b>기본 제공 음악 3곡</b>을 바로 쓰거나, 가사와 분위기를 적어 새 곡을 만들 수 있습니다.</div>
         </div>
-        <div class="step">
+        <div class="step" id="qsDuration">
           <div class="step-h"><span class="num">3</span>사진 1장당 재생시간을 설정해보세요.</div>
           <div class="row">
             <input type="number" id="defaultDuration" min="0.5" max="60" step="0.5" value="3"> 초
@@ -108,7 +200,7 @@
           </div>
           <div class="hint" id="durationInfo">사진과 음악을 넣어 멋진 영상을 만들어보세요.</div>
         </div>
-        <div class="step">
+        <div class="step" id="qsTitles">
           <div class="step-h"><span class="num">4</span>오프닝과 엔딩을 확인해보세요.</div>
           <div class="row title-row">
             <label class="chk"><input type="checkbox" id="openingOn"> 오프닝</label>
@@ -420,7 +512,7 @@
       <p class="credit-box"><a href="https://www.tenai.kr" target="_blank" rel="noopener"><img src="assets/tenai-logo-dark.png" alt="TenAI"></a> RuninqVic은 <b>(주)텐에이아이</b>가 만들었습니다. · <a href="https://www.tenai.kr" target="_blank" rel="noopener">www.tenai.kr</a></p>
       <p class="muted">작업 내용은 이 PC의 브라우저 안에 자동 저장되며, 사진·음악은 외부로 전송되지 않습니다. 다른 PC로 옮기려면 <b>저장</b>으로 .rvproj 파일을 만드세요.</p>
     </div>
-    <div class="modal-f"><a class="btn-link" href="manual.html" target="_blank" rel="noopener">📖 전체 사용설명서 보기</a><button id="btnUsage" title="운영자 전용: 서버에 등록한 ElevenLabs 키의 사용량 (주소 끝에 #usage 를 붙여도 열립니다)">📊 사용량(운영자)</button><span class="grow"></span><button id="btnInstall" hidden>📲 홈 화면에 추가</button><button class="primary" data-close="helpModal">확인</button></div>
+    <div class="modal-f"><a class="btn-link" href="manual.html" target="_blank" rel="noopener">📖 전체 사용설명서 보기</a><button id="btnUiSwitch" class="mini-text ghost" title="PC 버전과 모바일 버전 사이를 바꿉니다. 하던 작업은 그대로 이어집니다.">📱 모바일 버전</button><button id="btnUsage" title="운영자 전용: 서버에 등록한 ElevenLabs 키의 사용량 (주소 끝에 #usage 를 붙여도 열립니다)">📊 사용량(운영자)</button><span class="grow"></span><button id="btnInstall" hidden>📲 홈 화면에 추가</button><button class="primary" data-close="helpModal">확인</button></div>
   </div>
 </div>
 
@@ -443,5 +535,6 @@
 <script src="js/store.js"></script>
 <script src="js/musicgen.js"></script>
 <script src="js/app.js"></script>
+<script src="js/mobile.js"></script>
 </body>
 </html>

@@ -37,7 +37,8 @@
   `state`(모델) · `timeline`(시간 배분) · `designs`(프리셋) · `render`(캔버스 렌더러) · `audio`(믹스/비트 검출) · `exporter`(WebCodecs) · `store`(IndexedDB/.rvproj) · `app`(UI)
 - 인코딩: WebCodecs `VideoEncoder`(H.264, GPU 가속) + `AudioEncoder`(AAC) → `mp4-muxer`. H.264 를 못 쓰는 환경은 VP9/Opus WebM 으로 자동 대체.
 - 미리보기와 결과물이 같은 렌더러를 쓰므로 화면에서 본 그대로 저장됩니다.
-- 모바일: 900px 이하에서 세로 레이아웃(미리보기 → 타임라인 → 작업 패널), `navigator.share`로 갤러리·카톡 저장, `manifest.json` + `sw.js`(네트워크 우선, 오프라인 폴백)로 PWA 설치.
+- 모바일 버전(v1.9): 휴대폰이면 `index.html` 머리의 짧은 스크립트가 `html.m-ui`를 붙이고, `js/mobile.js`가 미리보기·음악·제목 블록·작업 패널(꾸미기 시트)을 단계별 화면(① 사진 ② 음악 ③ 제목 ④ 완성)으로 옮겨 씁니다. 엔진과 기능은 PC 버전과 같으며 `css/mobile.css`의 규칙은 모두 `html.m-ui` 아래에만 적용됩니다. `?ui=pc` / `?ui=mobile` 또는 전환 버튼으로 바꾸면 `localStorage rv.ui`에 기억합니다. 앱은 `rv:update` / `rv:select` / `rv:sync` 이벤트로 모바일 화면에 변경을 알립니다.
+- PC 버전의 좁은 화면: 900px 이하에서 세로 레이아웃(미리보기 → 타임라인 → 작업 패널), `navigator.share`로 갤러리·카톡 저장, `manifest.json` + `sw.js`(네트워크 우선, 오프라인 폴백)로 PWA 설치.
 - 오프닝·엔딩 사진·영상: `project.opening.media` / `project.ending.media` (`RV.titleMedia()`), 타임라인 항목의 `media`를 `RV.videoOf()`가 동영상 슬라이드와 같은 방식(재생 동기화·소리 섞기·내보내기 복제본)으로 다룹니다. 배치는 cover / contain / logo.
 - 동영상 클립: `<video>` 요소를 내보내기 전용 복제본으로 실시간 재생하며 프레임을 캡처(`Renderer.prepare` export 모드). 클립 소리는 `decodeAudioData`로 디코딩해 오프라인 믹스에 합치고, 재생 중 배경음악을 자동으로 낮춥니다(더킹).
 
