@@ -30,6 +30,7 @@
     async gc(project) {
       const used = new Set();
       project.slides.forEach((s) => s.assetId && used.add(s.assetId));
+      RV.titleMedia(project).forEach((m) => used.add(m.assetId));
       project.music.tracks.forEach((t) => t.assetId && used.add(t.assetId));
       const keys = await this.allAssetKeys();
       for (const k of keys) if (!used.has(k)) await this.deleteAsset(k);
@@ -49,6 +50,11 @@
       if (!s.assetId || seen.has(s.assetId)) continue; seen.add(s.assetId);
       const rec = await RV.store.getAsset(s.assetId); if (!rec) continue;
       out.assets.push({ id: s.assetId, kind: rec.kind || (s.type === 'video' ? 'video' : 'image'), name: rec.name, type: rec.blob.type, data: await blobToDataURL(rec.blob) });
+    }
+    for (const m of RV.titleMedia(project)) {
+      if (seen.has(m.assetId)) continue; seen.add(m.assetId);
+      const rec = await RV.store.getAsset(m.assetId); if (!rec) continue;
+      out.assets.push({ id: m.assetId, kind: rec.kind || (m.type === 'video' ? 'video' : 'image'), name: rec.name, type: rec.blob.type, data: await blobToDataURL(rec.blob) });
     }
     for (const t of project.music.tracks) {
       if (!t.assetId || seen.has(t.assetId)) continue; seen.add(t.assetId);

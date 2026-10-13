@@ -93,3 +93,40 @@ console.log('timeline tests passed');
   assert.ok(Math.abs(tl.items[1].start - 10) < 1e-9, 'video boundary at clip end');
 }
 console.log('video timeline tests passed');
+
+// 11. a video on the opening/ending: the card lasts the clip length and is not rescaled
+{
+  const p = proj(2, { fitToMusic: true, transition: 'none' });
+  p.opening.enabled = true; p.ending.enabled = true; p.opening.duration = 3; p.ending.duration = 3;
+  p.opening.media = { id: '__opening', type: 'video', assetId: 'v1', srcDuration: 30, in: 4, out: 12, volume: 1, muted: false, fit: 'cover' };
+  p.ending.media = { id: '__ending', type: 'photo', assetId: 'i1', fit: 'logo' };
+  const tl = RV.computeTimeline(p, { musicLength: 40 });
+  assert.strictEqual(tl.items[0].slide.id, '__opening');
+  assert.strictEqual(tl.items[0].duration, 8, 'opening = clip length');
+  assert.strictEqual(RV.videoOf(tl.items[0].slide), p.opening.media);
+  assert.strictEqual(RV.videoOf(tl.items[3].slide), null, 'a photo on the ending is not a video');
+  assert.ok(Math.abs(tl.total - 40) < 0.01, 'fit total ' + tl.total);
+  assert.deepStrictEqual(RV.titleMedia(p).map((m) => m.assetId), ['v1', 'i1']);
+  // without an asset id the media is ignored
+  p.opening.media.assetId = ''; assert.strictEqual(RV.computeTimeline(p, { musicLength: 40 }).items[0].slide.media, null);
+}
+console.log('title media timeline tests passed');
+// 12. beat sync keeps a trailing clip (ending video) at its trimmed length
+{
+  const beats = []; for (let t = 0.5; t < 60; t += 0.5) beats.push(t);
+  for (const [n, L] of [[10, 44], [10, 60], [30, 40], [45, 40]]) {
+    const p = proj(n, { beatSync: true, transition: 'none' });
+    p.ending.enabled = true; p.ending.media = { id: '__ending', type: 'video', assetId: 'v', srcDuration: 60, in: 0, out: 12 };
+    const tl = RV.computeTimeline(p, { musicLength: L, beats });
+    assert.strictEqual(tl.items[tl.items.length - 1].duration, 12, n + ' photos / ' + L + ' s: ending ' + tl.items[tl.items.length - 1].duration);
+  }
+}
+// 13. text window: long ending video shows its words at the end, opening at the start
+{
+  const mk = (role) => ({ role, src: { duration: 3 }, media: { type: 'video' } });
+  assert.deepStrictEqual(RV.titleTextWindow(mk('opening'), 10), [0, 3]);
+  assert.deepStrictEqual(RV.titleTextWindow(mk('ending'), 10), [7, 10]);
+  assert.deepStrictEqual(RV.titleTextWindow(mk('ending'), 3.2), [0, 3.2]);
+  assert.deepStrictEqual(RV.titleTextWindow({ role: 'opening', src: { duration: 3 }, media: { type: 'photo' } }, 3), [0, 3]);
+}
+console.log('title media review tests passed');

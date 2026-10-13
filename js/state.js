@@ -2,7 +2,7 @@
 (function (root) {
   const RV = (root.RV = root.RV || {});
 
-  RV.VERSION = '1.7.1';
+  RV.VERSION = '1.8.0';
 
   RV.ASPECTS = {
     '16:9': { w: 16, h: 9, label: '와이드 (16:9)' },
@@ -123,6 +123,12 @@
     const base = String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
     if (!withMs) return base;
     return base + '.' + String(Math.floor((sec % 1) * 10));
+  };
+  /* photo/video attached to the opening and ending cards: project.opening.media / project.ending.media
+     = null | { id: '__opening'|'__ending', type: 'photo'|'video', assetId, name, width, height, fit: 'cover'|'contain'|'logo',
+                srcDuration, in, out, volume, muted (video only) } */
+  RV.titleMedia = function (project) {
+    return ['opening', 'ending'].map((r) => project && project[r] && project[r].media).filter((m) => m && m.assetId);
   };
   RV.clamp = (v, a, b) => Math.min(b, Math.max(a, v));
   RV.lerp = (a, b, t) => a + (b - a) * t;

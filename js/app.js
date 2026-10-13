@@ -27,6 +27,16 @@
     box.appendChild(d); setTimeout(() => d.remove(), isErr ? 5000 : 2600);
   }
   function selectedSlide() { return S.project.slides.find((s) => s.id === S.selectedId) || null; }
+  /* 'opening' / 'ending' while that card is selected in the timeline */
+  function selectedTitleRole() { return S.selectedId === '__opening' ? 'opening' : S.selectedId === '__ending' ? 'ending' : null; }
+  /* the video the trimmer and the sound controls work on: the selected video slide, or the video on the selected opening/ending */
+  function trimTarget() {
+    const s = selectedSlide(); if (s) return s.type === 'video' ? s : null;
+    const r = selectedTitleRole(), m = r && S.project[r].media;
+    return m && m.type === 'video' && m.assetId ? m : null;
+  }
+  /* an asset may be shared by a slide and an opening/ending card */
+  function assetInUse(id) { return S.project.slides.some((x) => x.assetId === id) || RV.titleMedia(S.project).some((m) => m.assetId === id); }
   function selectedIndex() { return S.project.slides.findIndex((s) => s.id === S.selectedId); }
   function fillSelect(sel, items, val) {
     sel.innerHTML = '';
@@ -44,7 +54,7 @@
     if (S.renderer) S.renderer.invalidate();
     S.restoring = true;
     /* load assets from IDB */
-    for (const s of p.slides) {
+    for (const s of p.slides.concat(RV.titleMedia(p))) {
       if (!s.assetId || S.assets.images.has(s.assetId)) continue;
       const rec = await RV.store.getAsset(s.assetId).catch(() => null);
       if (rec && rec.blob) {
@@ -99,7 +109,7 @@
     let audioBuffer = null;
     try { audioBuffer = await RV.audio.ctx.decodeAudioData(await blob.arrayBuffer()); } catch (e) { audioBuffer = null; }
     const asset = { bitmap: v, video: v, url, width: v.videoWidth, height: v.videoHeight, duration: v.duration, thumb: c.toDataURL('image/jpeg', 0.8), audioBuffer, strip: null };
-    makeFilmstrip(asset).then(() => { const s = selectedSlide(); if (s && S.assets.images.get(s.assetId) === asset) syncSlideControls(); });
+    makeFilmstrip(asset).then(() => { const s = trimTarget(); if (s && S.assets.images.get(s.assetId) === asset) syncSlideControls(); });
     return asset;
   }
   /* filmstrip for the trimmer: N frames across the clip, rendered from a private <video> clone */
@@ -164,7 +174,7 @@
     $('#musicTotal').textContent = '(' + RV.fmtTime(ml) + ')';
     $('#musicTotal2').textContent = '총 ' + RV.fmtTime(ml);
     $('#tlEmpty').style.display = p.slides.length ? 'none' : '';
-    $('#welcome').style.display = p.slides.length ? 'none' : ''; /* show the start screen until the first photo/video is added */
+    $('#welcome').style.display = p.slides.length || RV.titleMedia(p).length ? 'none' : ''; /* show the start screen until the first photo/video is added */
     const info = $('#durationInfo');
     if (!p.slides.length) info.textContent = '사진과 음악을 넣어 멋진 영상을 만들어보세요.';
     else {
@@ -215,7 +225,7 @@
     const sc = $('#scrub'); if (!sc.matches(':active')) sc.value = S.tl.total ? Math.round(S.time / S.tl.total * 1000) : 0;
     updateTrimPlayhead();
   }
-  function hasVideo() { return S.project.slides.some((s) => s.type === 'video'); }
+  function hasVideo() { return S.project.slides.some((s) => s.type === 'video') || RV.titleMedia(S.project).some((m) => m.type === 'video'); }
   function pauseVideos() { for (const a of S.assets.images.values()) if (a.video && !a.video.paused) a.video.pause(); }
   async function ensureMix() {
     if (!S.mixDirty && S.mix !== undefined) return S.mix;
@@ -260,6 +270,7 @@
     drawFrame(); if (was) play();
   }
   function highlightCurrent() {
+    if (S.stopAt != null) return;   /* segment preview: keep the clip being trimmed selected */
     const loc = RV.locate(S.tl, S.time); if (!loc) return;
     const id = loc.b.slide.id;
     if (id !== S.selectedId && !id.startsWith('__')) { S.selectedId = id; markSelection(); syncSlideControls(); }
@@ -294,6 +305,70 @@
     if (firstId) select(firstId, true);
     toast((ok - vids) + '장 사진' + (vids ? ' · 동영상 ' + vids + '개' : '') + ' 추가' + (fail ? ' · ' + fail + '개 실패' : ''), !!fail && !ok);
     if (vids) toast('동영상 구간은 자막 탭에서 잘라 쓸 수 있습니다.');
+  }
+  /* ---------------- photo / video on the opening and ending ---------------- */
+  let titleMediaRole = 'opening';
+  /* PNG/WebP/GIF with see-through pixels is most likely a logo */
+  function looksLikeLogo(file, asset) {
+    if (!/png|webp|gif|svg/i.test(file.type || file.name)) return false;
+    try {
+      const c = document.createElement('canvas'); c.width = 40; c.height = 40; const x = c.getContext('2d');
+      x.drawImage(asset.bitmap, 0, 0, 40, 40);
+      const d = x.getImageData(0, 0, 40, 40).data;
+      for (let i = 3; i < d.length; i += 4) if (d[i] < 240) return true;
+    } catch (e) { /* ignore */ }
+    return false;
+  }
+  async function setTitleMedia(role, file) {
+    if (!file) return;
+    const video = isVideoFile(file) && !isImageFile(file);
+    if (!video && !isImageFile(file)) { toast('사진 또는 동영상 파일을 골라 주세요.', true); return; }
+    toast(video ? '동영상 분석 중: ' + file.name : '사진 불러오는 중…');
+    try {
+      const asset = video ? await makeVideoAsset(file) : await makeImageAsset(file);
+      const id = RV.uid(video ? 'vid' : 'img');
+      await RV.store.putAsset(id, { blob: file, name: file.name, kind: video ? 'video' : 'image' });
+      S.assets.images.set(id, asset);
+      const src = S.project[role], old = src.media;
+      const m = { id: '__' + role, type: video ? 'video' : 'photo', assetId: id, name: file.name, width: asset.width, height: asset.height, fit: !video && looksLikeLogo(file, asset) ? 'logo' : 'cover' };
+      let shortened = false;
+      if (video) {
+        Object.assign(m, { srcDuration: asset.duration, in: 0, out: 0, volume: 1, muted: false });
+        if (asset.duration > 20) { m.out = 10; shortened = true; }   /* an opening rarely needs a long clip: start with the first 10 s */
+      }
+      src.media = m; src.enabled = true;
+      if (old && old.assetId && old.assetId !== id && !assetInUse(old.assetId)) { releaseAsset(old.assetId); RV.store.deleteAsset(old.assetId).catch(() => {}); }
+      $('#' + role + 'On').checked = true;
+      renderTitleMedia(); update(); selectTitle(role, true);
+      const label = role === 'opening' ? '오프닝' : '엔딩';
+      if (video) toast(label + '에 동영상을 넣었습니다.' + (shortened ? ' 처음 10초만 쓰도록 맞췄으니 아래에서 구간을 바꿀 수 있습니다.' : ''));
+      else toast(label + '에 ' + (m.fit === 'logo' ? '로고(투명 배경 사진)를 제목 위에 작게' : '사진을 배경으로') + ' 넣었습니다.');
+    } catch (e) { console.warn('title media failed', e); toast(file.name + ': ' + (e.message || '열 수 없습니다'), true); }
+  }
+  function removeTitleMedia(role) {
+    const src = S.project[role], old = src.media; if (!old) return;
+    src.media = null;
+    if (old.assetId && !assetInUse(old.assetId)) { releaseAsset(old.assetId); RV.store.deleteAsset(old.assetId).catch(() => {}); }
+    renderTitleMedia(); update(); syncSlideControls();
+  }
+  /* the media rows under the opening / ending titles */
+  function renderTitleMedia() {
+    let anyVideo = false;
+    for (const role of ['opening', 'ending']) {
+      const row = $('#' + role + 'Media'), m = S.project[role].media, ma = m && S.assets.images.get(m.assetId);
+      const has = !!m;
+      row.querySelector('.tm-add').textContent = has ? '🔄 바꾸기' : '🖼 사진·영상 넣기';
+      row.querySelector('.tm-chip').hidden = !has; row.querySelector('.tm-fit').hidden = !has; row.querySelector('.tm-del').hidden = !has;
+      row.querySelector('.tm-trim').hidden = !(has && m.type === 'video');
+      if (has) {
+        const img = row.querySelector('.tm-chip img'); if (ma && ma.thumb) img.src = ma.thumb; else img.removeAttribute('src');
+        row.querySelector('.tm-name').textContent = (m.type === 'video' ? '▶ ' : '') + (m.name || (m.type === 'video' ? '동영상' : '사진')) + (ma ? '' : ' (불러올 수 없음)');
+        row.querySelector('.tm-chip').title = m.name || '';
+        row.querySelector('.tm-fit').value = m.fit || 'cover';
+        if (m.type === 'video') anyVideo = true;
+      }
+    }
+    $('#titleMediaHint').hidden = !anyVideo;
   }
   function addTextSlide() {
     const slide = RV.createSlide({ type: 'text', name: '텍스트 화면', bgStyle: 'night' });
@@ -350,6 +425,19 @@
   }
 
   /* ---------------- timeline strip ---------------- */
+  function titleCard(role, label, it) {
+    const src = S.project[role], m = src.media, ma = m && S.assets.images.get(m.assetId);
+    const d = document.createElement('div');
+    d.className = 'tl-item title-card' + (S.selectedId === '__' + role ? ' sel' : '');
+    d.dataset.id = '__' + role;
+    d.innerHTML = '<div class="thumb"></div><div class="meta"><span class="idx">' + label + '</span><span class="nm"></span><span class="dur">' + it.duration.toFixed(1) + 's</span></div>' +
+      (m ? '<span class="cap-dot' + (m.type === 'video' ? ' vid">▶ 영상' : '">🖼 사진') + '</span>' : '');
+    const th = d.querySelector('.thumb');
+    th.textContent = src.title || (m ? '' : '(제목 없음)');
+    if (ma && ma.thumb) { th.classList.add('has-media'); th.style.backgroundImage = 'url("' + ma.thumb + '")'; }
+    d.onclick = () => selectTitle(role, true);
+    return d;
+  }
   function renderTimelineStrip() {
     const strip = $('#tlStrip');
     $$('.tl-item', strip).forEach((n) => n.remove());
@@ -357,10 +445,7 @@
     const mk = (cls, inner) => { const d = document.createElement('div'); d.className = 'tl-item ' + cls; d.innerHTML = inner; return d; };
     if (p.opening.enabled) {
       const it = S.tl.byId.__opening;
-      const d = mk('title-card', '<div class="thumb"></div><div class="meta"><span class="idx">오프닝</span><span class="nm"></span><span class="dur">' + it.duration.toFixed(1) + 's</span></div>');
-      d.querySelector('.thumb').textContent = p.opening.title || '(제목 없음)';
-      d.onclick = () => { S.selectedId = null; markSelection(); seek(it.start + 0.9); showTab('quick'); };
-      strip.appendChild(d);
+      strip.appendChild(titleCard('opening', '오프닝', it));
     }
     p.slides.forEach((s, i) => {
       const it = S.tl.byId[s.id];
@@ -389,11 +474,19 @@
     });
     if (p.ending.enabled) {
       const it = S.tl.byId.__ending;
-      const d = mk('title-card', '<div class="thumb"></div><div class="meta"><span class="idx">엔딩</span><span class="nm"></span><span class="dur">' + it.duration.toFixed(1) + 's</span></div>');
-      d.querySelector('.thumb').textContent = p.ending.title || '(제목 없음)';
-      d.onclick = () => { S.selectedId = null; markSelection(); seek(it.start + 0.9); showTab('quick'); };
-      strip.appendChild(d);
+      strip.appendChild(titleCard('ending', '엔딩', it));
     }
+  }
+  /* where to park the preview on an opening/ending card so its words are visible */
+  function titleSeekTime(it) {
+    const [w0, w1] = RV.titleTextWindow(it.slide, it.duration);
+    return it.start + w0 + Math.min(0.9, (w1 - w0) / 2);
+  }
+  /* select the opening/ending card: the quick tab shows its settings (and the trimmer when it has a video) */
+  function selectTitle(role, doSeek) {
+    S.selectedId = '__' + role; markSelection(); syncSlideControls();
+    showTab('quick');
+    if (doSeek) { const it = S.tl.byId['__' + role]; if (it) seek(titleSeekTime(it)); }
   }
   function markSelection() {
     $$('.tl-item').forEach((n) => n.classList.toggle('sel', !!S.selectedId && n.dataset.id === S.selectedId));
@@ -424,7 +517,7 @@
   function deleteSelected() {
     const i = selectedIndex(); if (i < 0) return;
     const [s] = S.project.slides.splice(i, 1);
-    if (s.assetId && !S.project.slides.some((x) => x.assetId === s.assetId)) { releaseAsset(s.assetId); RV.store.deleteAsset(s.assetId).catch(() => {}); }
+    if (s.assetId && !assetInUse(s.assetId)) { releaseAsset(s.assetId); RV.store.deleteAsset(s.assetId).catch(() => {}); }
     S.selectedId = null; update();
     if (S.project.slides.length) select(S.project.slides[Math.min(i, S.project.slides.length - 1)].id, true); else markSelection();
   }
@@ -447,6 +540,7 @@
     $('#defaultDuration').value = p.defaultDuration; $('#fitToMusic').checked = p.fitToMusic; $('#beatSync').checked = p.beatSync;
     $('#openingOn').checked = p.opening.enabled; $('#openingTitle').value = p.opening.title; $('#openingSub').value = p.opening.subtitle || '';
     $('#endingOn').checked = p.ending.enabled; $('#endingTitle').value = p.ending.title; $('#endingSub').value = p.ending.subtitle || '';
+    renderTitleMedia();
     $('#titleStyle').value = p.opening.style || 'classic'; $('#titleDuration').value = p.opening.duration;
     $('#bgColor').value = p.bgColor; $('#blurAmount').value = p.blurAmount; $('#blurDarken').value = p.blurDarken;
     $('#trDuration').value = p.transitionDuration; $('#trDurationVal').textContent = p.transitionDuration.toFixed(1) + '초';
@@ -465,12 +559,18 @@
     $$('#posGrid button').forEach((b) => b.classList.toggle('on', b.dataset.pos === cap.pos));
     $$('#capEffects button').forEach((b) => b.classList.toggle('on', b.dataset.fx === cap.effect));
     $('#slideDuration').value = s && s.duration != null ? s.duration : ''; $('#slideDuration').disabled = !s || p.fitToMusic || p.beatSync;
-    const isVid = !!(s && s.type === 'video');
-    $('#durationRow').hidden = isVid; $('#videoBox').hidden = !isVid;
-    if (isVid) {
-      renderTrimmer(s);
-      $('#vVolume').value = s.volume == null ? 1 : s.volume; $('#vVolumeVal').textContent = Math.round((s.volume == null ? 1 : s.volume) * 100) + '%';
-      $('#vMute').checked = !!s.muted;
+    $('#durationRow').hidden = !!(s && s.type === 'video');
+    const tv = trimTarget(), box = $('#videoBox');
+    box.hidden = !tv;
+    /* the opening/ending video is trimmed right under its settings in the quick tab */
+    const titleVid = !!(tv && !s);
+    if (titleVid && box.parentNode !== $('#titleTrimSlot')) $('#titleTrimSlot').appendChild(box);
+    else if (!titleVid && videoBoxHome && box.parentNode !== videoBoxHome.parent) videoBoxHome.parent.insertBefore(box, videoBoxHome.next);
+    $('#vBoxTitle').textContent = titleVid ? '🎬 ' + (selectedTitleRole() === 'opening' ? '오프닝' : '엔딩') + ' 영상 구간 자르기' : '🎬 동영상 구간 자르기';
+    if (tv) {
+      renderTrimmer(tv);
+      $('#vVolume').value = tv.volume == null ? 1 : tv.volume; $('#vVolumeVal').textContent = Math.round((tv.volume == null ? 1 : tv.volume) * 100) + '%';
+      $('#vMute').checked = !!tv.muted;
     }
     const eff = (key) => (s && s[key] != null ? s[key] : p[key]);
     const mark = (grid, val, isOverride) => $$('.tile', $(grid)).forEach((t) => { t.classList.toggle('on', t.dataset.id === val); t.classList.toggle('override', isOverride && t.dataset.id === val); });
@@ -481,6 +581,7 @@
   }
 
   /* ---------------- video trimmer ---------------- */
+  let videoBoxHome = null;   /* where #videoBox lives in the caption tab, so it can come back from the quick tab */
   function clipRange(s) {
     const src = +s.srcDuration || 0, inPt = Math.max(0, +s.in || 0);
     const outPt = (s.out && s.out > inPt) ? Math.min(s.out, src) : src;
@@ -504,7 +605,7 @@
   }
   /* white line on the filmstrip = where the preview currently is inside this clip */
   function updateTrimPlayhead(s) {
-    s = s || selectedSlide(); const ph = $('#vPlayhead');
+    s = s || trimTarget(); const ph = $('#vPlayhead');
     if (!s || s.type !== 'video' || $('#videoBox').hidden) { if (ph) ph.style.display = 'none'; return; }
     const it = S.tl.byId[s.id]; const { src, inPt } = clipRange(s);
     if (!it || S.time < it.start || S.time > it.end || !src) { ph.style.display = 'none'; return; }
@@ -519,7 +620,7 @@
   }
   /* set in/out; light=true while dragging (no strip rebuild / autosave), preview follows the moved edge */
   function setTrim(inPt, outPt, which, light) {
-    const s = selectedSlide(); if (!s || s.type !== 'video') return;
+    const s = trimTarget(); if (!s) return;
     const src = +s.srcDuration || 0;
     inPt = RV.clamp(+inPt || 0, 0, Math.max(0, src - 0.5));
     outPt = RV.clamp(+outPt || src, inPt + 0.5, src);
@@ -543,33 +644,34 @@
     if (it && (which === 'in' || which === 'out')) seek(edgeTime(it));
   }
   function bindTrimmer() {
+    videoBoxHome = { parent: $('#videoBox').parentNode, next: $('#videoBox').nextSibling };
     const box = $('#trimmer');
-    const posToTime = (clientX) => { const r = box.getBoundingClientRect(); const s = selectedSlide(); const src = s ? +s.srcDuration || 0 : 0; return RV.clamp((clientX - r.left) / r.width, 0, 1) * src; };
+    const posToTime = (clientX) => { const r = box.getBoundingClientRect(); const s = trimTarget(); const src = s ? +s.srcDuration || 0 : 0; return RV.clamp((clientX - r.left) / r.width, 0, 1) * src; };
     const drag = (handle, which) => {
       let active = false, raf = 0, lastX = 0;
       handle.addEventListener('pointerdown', (e) => { active = true; handle.setPointerCapture(e.pointerId); handle.classList.add('drag'); e.preventDefault(); });
       handle.addEventListener('pointermove', (e) => {
         if (!active) return; lastX = e.clientX;
         if (raf) return;
-        raf = requestAnimationFrame(() => { raf = 0; const s = selectedSlide(); if (!s) return; const { inPt, outPt } = clipRange(s); const t = posToTime(lastX); if (which === 'in') setTrim(t, outPt, 'in', true); else setTrim(inPt, t, 'out', true); });
+        raf = requestAnimationFrame(() => { raf = 0; const s = trimTarget(); if (!s) return; const { inPt, outPt } = clipRange(s); const t = posToTime(lastX); if (which === 'in') setTrim(t, outPt, 'in', true); else setTrim(inPt, t, 'out', true); });
       });
-      const end = () => { if (!active) return; active = false; handle.classList.remove('drag'); const s = selectedSlide(); if (s) { const { inPt, outPt } = clipRange(s); setTrim(inPt, outPt, which, false); } };
+      const end = () => { if (!active) return; active = false; handle.classList.remove('drag'); const s = trimTarget(); if (s) { const { inPt, outPt } = clipRange(s); setTrim(inPt, outPt, which, false); } };
       handle.addEventListener('pointerup', end); handle.addEventListener('pointercancel', end);
-      handle.addEventListener('keydown', (e) => { const s = selectedSlide(); if (!s) return; const { inPt, outPt } = clipRange(s); const d = e.key === 'ArrowLeft' ? -0.1 : e.key === 'ArrowRight' ? 0.1 : 0; if (!d) return; e.preventDefault(); if (which === 'in') setTrim(inPt + d, outPt, 'in'); else setTrim(inPt, outPt + d, 'out'); });
+      handle.addEventListener('keydown', (e) => { const s = trimTarget(); if (!s) return; const { inPt, outPt } = clipRange(s); const d = e.key === 'ArrowLeft' ? -0.1 : e.key === 'ArrowRight' ? 0.1 : 0; if (!d) return; e.preventDefault(); if (which === 'in') setTrim(inPt + d, outPt, 'in'); else setTrim(inPt, outPt + d, 'out'); });
     };
     drag($('#vHandleL'), 'in'); drag($('#vHandleR'), 'out');
     /* click on the strip (not on a handle) = move the nearer handle there */
-    $('#vStrip').addEventListener('pointerdown', (e) => { const s = selectedSlide(); if (!s) return; const { inPt, outPt } = clipRange(s); const t = posToTime(e.clientX); if (Math.abs(t - inPt) <= Math.abs(t - outPt)) setTrim(t, outPt, 'in'); else setTrim(inPt, t, 'out'); });
-    const nudge = (which, d) => { const s = selectedSlide(); if (!s) return; const { inPt, outPt } = clipRange(s); if (which === 'in') setTrim(inPt + d, outPt, 'in'); else setTrim(inPt, outPt + d, 'out'); };
+    $('#vStrip').addEventListener('pointerdown', (e) => { const s = trimTarget(); if (!s) return; const { inPt, outPt } = clipRange(s); const t = posToTime(e.clientX); if (Math.abs(t - inPt) <= Math.abs(t - outPt)) setTrim(t, outPt, 'in'); else setTrim(inPt, t, 'out'); });
+    const nudge = (which, d) => { const s = trimTarget(); if (!s) return; const { inPt, outPt } = clipRange(s); if (which === 'in') setTrim(inPt + d, outPt, 'in'); else setTrim(inPt, outPt + d, 'out'); };
     $('#vInMinus').onclick = () => nudge('in', -0.5); $('#vInPlus').onclick = () => nudge('in', 0.5);
     $('#vOutMinus').onclick = () => nudge('out', -0.5); $('#vOutPlus').onclick = () => nudge('out', 0.5);
-    $('#vIn').onchange = (e) => { const s = selectedSlide(); if (s) setTrim(e.target.value, clipRange(s).outPt, 'in'); };
-    $('#vOut').onchange = (e) => { const s = selectedSlide(); if (s) setTrim(clipRange(s).inPt, e.target.value, 'out'); };
-    $('#vLenIn').onchange = (e) => { const s = selectedSlide(); if (!s) return; const { inPt } = clipRange(s); setTrim(inPt, inPt + (+e.target.value || 0.5), 'out'); };
-    $$('#videoBox .quick [data-len]').forEach((b) => (b.onclick = () => { const s = selectedSlide(); if (!s) return; const { inPt, src } = clipRange(s); const len = +b.dataset.len; const start = inPt + len <= src ? inPt : Math.max(0, src - len); setTrim(start, start + len, 'out'); }));
-    $('#vReset').onclick = () => { const s = selectedSlide(); if (s) setTrim(0, s.srcDuration, 'in'); };
+    $('#vIn').onchange = (e) => { const s = trimTarget(); if (s) setTrim(e.target.value, clipRange(s).outPt, 'in'); };
+    $('#vOut').onchange = (e) => { const s = trimTarget(); if (s) setTrim(clipRange(s).inPt, e.target.value, 'out'); };
+    $('#vLenIn').onchange = (e) => { const s = trimTarget(); if (!s) return; const { inPt } = clipRange(s); setTrim(inPt, inPt + (+e.target.value || 0.5), 'out'); };
+    $$('#videoBox .quick [data-len]').forEach((b) => (b.onclick = () => { const s = trimTarget(); if (!s) return; const { inPt, src } = clipRange(s); const len = +b.dataset.len; const start = inPt + len <= src ? inPt : Math.max(0, src - len); setTrim(start, start + len, 'out'); }));
+    $('#vReset').onclick = () => { const s = trimTarget(); if (s) setTrim(0, s.srcDuration, 'in'); };
     const setFromPreview = (which) => {
-      const s = selectedSlide(); if (!s || s.type !== 'video') return;
+      const s = trimTarget(); if (!s) return;
       const ct = currentClipTime(s);
       if (ct == null) { toast('미리보기를 이 동영상 화면 안의 장면에 맞춘 뒤 눌러주세요.', true); return; }
       const { inPt, outPt } = clipRange(s);
@@ -577,7 +679,7 @@
       else { if (ct <= inPt + 0.5) { toast('끝 지점은 시작보다 0.5초 이상 뒤여야 합니다.', true); return; } setTrim(inPt, ct, 'out'); toast('끝 지점: ' + ct.toFixed(1) + '초'); }
     };
     $('#vSetIn').onclick = () => setFromPreview('in'); $('#vSetOut').onclick = () => setFromPreview('out');
-    $('#vPlaySeg').onclick = () => { const s = selectedSlide(); if (!s) return; const it = S.tl.byId[s.id]; if (!it) return; S.time = it.start + it.trIn; S.stopAt = it.end; play(); };
+    $('#vPlaySeg').onclick = () => { const s = trimTarget(); if (!s) return; const it = S.tl.byId[s.id]; if (!it) return; S.time = it.start + it.trIn; S.stopAt = it.end; play(); };
     RV.app.setFromPreview = setFromPreview;
   }
 
@@ -1031,7 +1133,7 @@
     } catch (e) { console.error(e); toast('프로젝트를 열 수 없습니다: ' + e.message, true); }
   }
   async function newProject() {
-    if (S.project.slides.length && !confirm('현재 작업을 지우고 새로 시작할까요?')) return;
+    if ((S.project.slides.length || RV.titleMedia(S.project).length) && !confirm('현재 작업을 지우고 새로 시작할까요?')) return;
     await RV.store.clearAll();
     await setProject(RV.createProject());
   }
@@ -1100,7 +1202,7 @@
     on('#btnRemoveMusic', 'click', () => { const m = p().music; const id = S.selectedTrack || (m.tracks.length ? m.tracks[m.tracks.length - 1].id : null); if (id) removeTrack(id); });
     on('#btnAddText', 'click', addTextSlide);
     on('#btnDelete', 'click', deleteSelected);
-    on('#btnClear', 'click', () => { if (!p().slides.length) return; if (!confirm('모든 화면을 삭제할까요?')) return; stopPlayback(false); p().slides.forEach((s) => { if (s.assetId) { RV.store.deleteAsset(s.assetId).catch(() => {}); releaseAsset(s.assetId); } }); p().slides = []; S.selectedId = null; update(); markSelection(); });
+    on('#btnClear', 'click', () => { if (!p().slides.length) return; if (!confirm('모든 화면을 삭제할까요?')) return; stopPlayback(false); const gone = new Set(p().slides.map((s) => s.assetId).filter(Boolean)); p().slides = []; gone.forEach((id) => { if (!assetInUse(id)) { RV.store.deleteAsset(id).catch(() => {}); releaseAsset(id); } }); S.selectedId = null; update(); markSelection(); });
     on('#sortSel', 'change', (e) => { if (e.target.value) sortSlides(e.target.value); e.target.value = ''; });
     on('#btnRotL', 'click', () => rotateSelected(-90)); on('#btnRotR', 'click', () => rotateSelected(90));
     on('#btnNew', 'click', newProject); on('#btnOpen', 'click', () => $('#fileProj').click()); on('#btnSave', 'click', saveProjectFile);
@@ -1147,9 +1249,19 @@
     const titleInputs = () => { const o = p().opening, en = p().ending; o.enabled = $('#openingOn').checked; o.title = $('#openingTitle').value; o.subtitle = $('#openingSub').value; en.enabled = $('#endingOn').checked; en.title = $('#endingTitle').value; en.subtitle = $('#endingSub').value; o.style = en.style = $('#titleStyle').value; o.duration = en.duration = RV.clamp(+$('#titleDuration').value || 3, 1, 15); update(); };
     const titleModel = () => { const o = p().opening, en = p().ending; o.title = $('#openingTitle').value; o.subtitle = $('#openingSub').value; en.title = $('#endingTitle').value; en.subtitle = $('#endingSub').value; };
     ['#openingOn', '#endingOn', '#titleStyle', '#titleDuration'].forEach((s) => on(s, 'input', titleInputs));
+    /* photo / video on the opening and ending */
+    ['opening', 'ending'].forEach((role) => {
+      const row = $('#' + role + 'Media');
+      row.querySelector('.tm-add').onclick = () => { titleMediaRole = role; $('#fileTitleMedia').click(); };
+      row.querySelector('.tm-del').onclick = () => removeTitleMedia(role);
+      row.querySelector('.tm-fit').onchange = (e) => { const m = p()[role].media; if (!m) return; m.fit = e.target.value; update(); selectTitle(role, true); };
+      row.querySelector('.tm-trim').onclick = () => { selectTitle(role, true); setTimeout(() => { const b = $('#videoBox'); if (!b.hidden) b.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }, 60); };
+      row.querySelector('.tm-chip').onclick = () => selectTitle(role, true);
+    });
+    on('#fileTitleMedia', 'change', (e) => { const f = e.target.files[0]; e.target.value = ''; setTitleMedia(titleMediaRole, f); });
     ['#openingTitle', '#openingSub', '#endingTitle', '#endingSub'].forEach((s) => bindTyping(s, titleModel));
     /* show the card being edited, so the text appears in the preview as it is typed */
-    const showCard = (key) => () => { const it = S.tl.byId[key]; if (it && !S.playing) seek(it.start + Math.min(0.9, it.duration / 2)); };
+    const showCard = (key) => () => { const it = S.tl.byId[key]; if (it && !S.playing) seek(titleSeekTime(it)); };
     ['#openingTitle', '#openingSub'].forEach((s) => on(s, 'focus', showCard('__opening'))); ['#endingTitle', '#endingSub'].forEach((s) => on(s, 'focus', showCard('__ending')));
 
     /* caption tab */
@@ -1182,8 +1294,8 @@
 
     /* video trim */
     bindTrimmer();
-    on('#vVolume', 'input', (e) => { const s = selectedSlide(); if (!s) return; s.volume = +e.target.value; $('#vVolumeVal').textContent = Math.round(s.volume * 100) + '%'; S.mixDirty = true; scheduleSave(); });
-    on('#vMute', 'change', (e) => { const s = selectedSlide(); if (!s) return; s.muted = e.target.checked; S.mixDirty = true; scheduleSave(); });
+    on('#vVolume', 'input', (e) => { const s = trimTarget(); if (!s) return; s.volume = +e.target.value; $('#vVolumeVal').textContent = Math.round(s.volume * 100) + '%'; S.mixDirty = true; scheduleSave(); });
+    on('#vMute', 'change', (e) => { const s = trimTarget(); if (!s) return; s.muted = e.target.checked; S.mixDirty = true; scheduleSave(); });
 
     /* export modal */
     on('#exPreset', 'change', (e) => applyPreset(e.target.value));
@@ -1346,8 +1458,8 @@
       if (e.key === 'Escape') { $$('.modal.open').forEach((m) => { if (m.id !== 'exportModal' || !exportAbort) m.classList.remove('open'); }); return; }
       if (typing) return;
       if (e.code === 'Space') { e.preventDefault(); togglePlay(); }
-      else if ((e.key === 'i' || e.key === 'I') && selectedSlide() && selectedSlide().type === 'video') RV.app.setFromPreview('in');
-      else if ((e.key === 'o' || e.key === 'O') && selectedSlide() && selectedSlide().type === 'video') RV.app.setFromPreview('out');
+      else if ((e.key === 'i' || e.key === 'I') && trimTarget()) RV.app.setFromPreview('in');
+      else if ((e.key === 'o' || e.key === 'O') && trimTarget()) RV.app.setFromPreview('out');
       else if (e.key === 'ArrowLeft') moveSelection(-1); else if (e.key === 'ArrowRight') moveSelection(1);
       else if (e.key === 'Delete' || e.key === 'Backspace') deleteSelected();
       else if (e.key === 'Home') seek(0); else if (e.key === 'End') seek(S.tl.total);
@@ -1368,7 +1480,7 @@
     S.project = RV.createProject();
     let saved = null;
     try { saved = await RV.store.loadProject(); } catch (e) { console.warn('IDB unavailable', e); }
-    if (saved && saved.app === 'RuninqVic' && (saved.slides.length || saved.music.tracks.length)) {
+    if (saved && saved.app === 'RuninqVic' && (saved.slides.length || saved.music.tracks.length || RV.titleMedia(saved).length)) {
       await setProject(saved, { skipSave: true });
       toast('이전 작업을 복원했습니다.');
     } else {
@@ -1379,5 +1491,5 @@
   window.addEventListener('DOMContentLoaded', init);
 
   /* debug/test hooks */
-  RV.app = { S, addPhotos, addMusic, update, select, play, stopPlayback, seek, openExport, startExport, exportSettings, setProject, addTextSlide, platform, saveHintHtml, sendHintHtml, openSendPanel, getLastExport: () => lastExport, renderUsage, shareLastExport, renderSendPanel, setLastExport, openInBrowser, inApp: () => inApp };
+  RV.app = { S, addPhotos, addMusic, update, select, play, stopPlayback, seek, openExport, startExport, exportSettings, setProject, addTextSlide, platform, saveHintHtml, sendHintHtml, openSendPanel, getLastExport: () => lastExport, renderUsage, shareLastExport, renderSendPanel, setLastExport, openInBrowser, inApp: () => inApp, setTitleMedia, removeTitleMedia, selectTitle, trimTarget };
 })();

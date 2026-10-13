@@ -18,7 +18,7 @@
 </head>
 <body>
 <header class="topbar">
-  <div class="brand"><img class="logo" src="assets/logo.svg" alt="" width="28" height="28"><span class="name">RuninqVic</span><span class="ver">v1.7</span><a class="maker-logo" href="https://www.tenai.kr" target="_blank" rel="noopener" title="제작: (주)텐에이아이 · www.tenai.kr"><img src="assets/tenai-logo-dark.png" alt="TenAI"></a></div>
+  <div class="brand"><img class="logo" src="assets/logo.svg" alt="" width="28" height="28"><span class="name">RuninqVic</span><span class="ver">v1.8</span><a class="maker-logo" href="https://www.tenai.kr" target="_blank" rel="noopener" title="제작: (주)텐에이아이 · www.tenai.kr"><img src="assets/tenai-logo-dark.png" alt="TenAI"></a></div>
   <input id="projName" class="proj-name" title="프로젝트 이름" spellcheck="false">
   <div class="top-actions">
     <button id="btnNew" title="새 프로젝트 (Ctrl+N)"><span class="ico">🆕</span><span class="txt">새로 만들기</span></button>
@@ -115,15 +115,31 @@
             <input type="text" id="openingTitle" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="done" placeholder="제목 (예: 2026.09.16)">
             <input type="text" id="openingSub" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="done" placeholder="부제 (선택)">
           </div>
+          <div class="row title-media" id="openingMedia" data-role="opening">
+            <button class="mini tm-add" title="오프닝에 사진이나 동영상 넣기">🖼 사진·영상 넣기</button>
+            <span class="tm-chip" hidden><img alt=""><span class="tm-name"></span></span>
+            <button class="mini tm-del" hidden title="사진·영상 빼기">✕</button>
+            <select class="tm-fit" title="사진·영상 배치" hidden><option value="cover">화면 가득</option><option value="contain">전체 보이기</option><option value="logo">제목 위에 작게</option></select>
+            <button class="mini tm-trim" hidden title="동영상 구간 자르기와 소리">✂ 구간·소리</button>
+          </div>
           <div class="row title-row">
             <label class="chk"><input type="checkbox" id="endingOn"> 엔딩</label>
             <input type="text" id="endingTitle" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="done" placeholder="제목 (예: The End)">
             <input type="text" id="endingSub" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="done" placeholder="부제 (선택)">
           </div>
+          <div class="row title-media" id="endingMedia" data-role="ending">
+            <button class="mini tm-add" title="엔딩에 사진이나 동영상 넣기">🖼 사진·영상 넣기</button>
+            <span class="tm-chip" hidden><img alt=""><span class="tm-name"></span></span>
+            <button class="mini tm-del" hidden title="사진·영상 빼기">✕</button>
+            <select class="tm-fit" title="사진·영상 배치" hidden><option value="cover">화면 가득</option><option value="contain">전체 보이기</option><option value="logo">제목 위에 작게</option></select>
+            <button class="mini tm-trim" hidden title="동영상 구간 자르기와 소리">✂ 구간·소리</button>
+          </div>
           <div class="row">
             <label>스타일 <select id="titleStyle"></select></label>
             <label>길이 <input type="number" id="titleDuration" min="1" max="15" step="0.5" value="3"> 초</label>
           </div>
+          <div class="hint" id="titleMediaHint" hidden>영상이 들어간 오프닝·엔딩은 고른 구간 길이만큼 재생됩니다. 영상이 길면 제목은 오프닝은 처음, 엔딩은 마지막에 위의 "길이"만큼 보입니다.</div>
+          <div id="titleTrimSlot"></div>
         </div>
         <div class="step cta">
           <button id="btnGoDetail" class="ghost">✨ 자막 · 디자인 · 효과로 더 꾸미기 ›</button>
@@ -160,7 +176,7 @@
           <button id="slideDurationReset" class="mini" title="기본값으로">↺</button>
         </div>
         <div class="video-box" id="videoBox" hidden>
-          <div class="sub-h">🎬 동영상 구간 자르기 <span class="muted" id="vSrcLen"></span></div>
+          <div class="sub-h"><span id="vBoxTitle">🎬 동영상 구간 자르기</span> <span class="muted" id="vSrcLen"></span></div>
           <div class="trimmer" id="trimmer">
             <div class="strip" id="vStrip"></div>
             <div class="dim dim-l" id="vDimL"></div>
@@ -413,6 +429,7 @@
 <input type="file" id="fileVideosOnly" multiple accept="video/*,.mp4,.webm,.mov,.m4v" hidden>
 <input type="file" id="fileMusic" multiple accept="audio/*,.mp3,.m4a,.wav,.ogg,.aac,.flac" hidden>
 <input type="file" id="fileProj" accept=".rvproj,.json" hidden>
+<input type="file" id="fileTitleMedia" accept="image/*,video/*,.mp4,.webm,.mov,.m4v" hidden>
 <div id="toast"></div>
 
 <script src="lib/mp4-muxer.min.js"></script>

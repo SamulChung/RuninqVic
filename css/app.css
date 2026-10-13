@@ -92,6 +92,12 @@ body.dragging .drop-overlay { display: grid; }
 .row label.wide { flex: 1; }
 .row label.wide input { flex: 1; }
 .title-row input[type=text] { flex: 1; min-width: 100px; }
+.title-media { margin-top: -2px; padding-left: 22px; gap: 6px; flex-wrap: wrap; align-items: center; }
+.title-media .tm-chip { display: inline-flex; align-items: center; gap: 6px; flex: 0 1 auto; min-width: 0; max-width: 210px; cursor: pointer; padding: 2px 8px 2px 2px; border: 1px solid var(--line2); border-radius: 8px; background: var(--bg); font-size: 12px; }
+.title-media .tm-chip img { width: 44px; height: 26px; object-fit: cover; border-radius: 5px; background: #222; flex: 0 0 auto; }
+.title-media .tm-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.title-media select { padding: 3px 6px; font-size: 12.5px; }
+#titleTrimSlot .video-box { margin-top: 10px; }
 .cta { text-align: center; }
 .music-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line2); border-radius: 8px; background: var(--bg); max-height: 150px; overflow: auto; }
 .music-list li { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-bottom: 1px solid var(--line); cursor: pointer; }
@@ -134,6 +140,7 @@ body.dragging .drop-overlay { display: grid; }
 .tl-item.dragover { border-color: var(--blue); box-shadow: -4px 0 0 var(--blue); }
 .tl-item.title-card .thumb { display: grid; place-items: center; font-weight: 700; color: #f1d27a; background: linear-gradient(135deg, #0f0c29, #302b63); text-align: center; padding: 6px; font-size: 12px; line-height: 1.3; }
 .tl-item .thumb { width: 100%; height: calc(84px + (var(--tl-h, 190px) - 190px) * 0.9); object-fit: cover; display: block; background: #222; }
+.tl-item.title-card .thumb.has-media { background-size: cover; background-position: center; color: #fff; text-shadow: 0 1px 3px #000, 0 0 6px rgba(0,0,0,.8); box-shadow: inset 0 0 0 999px rgba(0,0,0,.32); }
 .tl-item .thumb.text-card { display: grid; place-items: center; color: #fff; background: linear-gradient(135deg, #0f0c29, #24243e); font-size: 12px; padding: 6px; text-align: center; }
 .tl-item .meta { display: flex; align-items: center; gap: 6px; padding: 4px 7px; font-size: 11px; }
 .tl-item .meta .idx { color: var(--accent); font-weight: 700; }

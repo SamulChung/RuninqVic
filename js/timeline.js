@@ -5,18 +5,27 @@
 
   function buildSequence(project) {
     const seq = [];
-    if (project.opening && project.opening.enabled) {
-      seq.push({ id: '__opening', type: 'title', role: 'opening', duration: project.opening.duration || 3, transition: null, src: project.opening });
-    }
+    const title = (role) => {
+      const src = project[role];
+      const media = src.media && src.media.assetId ? src.media : null;
+      return { id: '__' + role, type: 'title', role, duration: src.duration || 3, transition: null, src, media };
+    };
+    if (project.opening && project.opening.enabled) seq.push(title('opening'));
     for (const s of project.slides) seq.push(s);
-    if (project.ending && project.ending.enabled) {
-      seq.push({ id: '__ending', type: 'title', role: 'ending', duration: project.ending.duration || 3, transition: null, src: project.ending });
-    }
+    if (project.ending && project.ending.enabled) seq.push(title('ending'));
     return seq;
+  }
+  /* the video that plays for a timeline entry: a video slide itself, or the video attached to an opening/ending card */
+  function videoOf(s) {
+    if (!s) return null;
+    if (s.type === 'video') return s;
+    if (s.type === 'title' && s.media && s.media.type === 'video') return s.media;
+    return null;
   }
 
   function slideDuration(project, s) {
-    if (s.type === 'video') return Math.max(MIN_DUR, videoClipLength(s));
+    const v = videoOf(s);
+    if (v) return Math.max(MIN_DUR, videoClipLength(v));
     const d = (s.duration != null && s.duration > 0) ? s.duration : project.defaultDuration;
     return Math.max(MIN_DUR, +d || 3);
   }
@@ -28,7 +37,7 @@
     return Math.max(0, b - a);
   }
   /* durations that must not be rescaled by fit-to-music / beat sync */
-  function isFixed(s) { return s.type === 'video'; }
+  function isFixed(s) { return !!videoOf(s); }
 
   function transitionOf(project, s) {
     const t = s.transition != null ? s.transition : project.transition;
@@ -129,7 +138,7 @@
     for (let i = 0; i < n; i++) {
       const visible = bounds[i + 1] - bounds[i];
       const trIn = i === 0 ? 0 : trs[i];
-      out.push(Math.max(MIN_DUR, visible + trIn));
+      out.push(fixed && fixed[i] != null ? fixed[i] : Math.max(MIN_DUR, visible + trIn));   /* a clip keeps its length, also as the last item */
     }
     return out;
   }
@@ -157,4 +166,12 @@
   RV.transitionOf = transitionOf;
   RV.slideDuration = slideDuration;
   RV.videoClipLength = videoClipLength;
+  RV.videoOf = videoOf;
+  /* when the words of an opening/ending card are on screen: the whole card, or on a long video card
+     the first (opening) / last (ending) N seconds, N = the title length setting. Returns [from, to] in card seconds. */
+  RV.titleTextWindow = function (s, dur) {
+    const tDur = Math.max(1, +(s.src && s.src.duration) || 3);
+    if (s.media && s.media.type === 'video' && dur > tDur + 0.5) return s.role === 'ending' ? [dur - tDur, dur] : [0, tDur];
+    return [0, dur];
+  };
 })(typeof window !== 'undefined' ? window : globalThis);

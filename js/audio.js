@@ -29,8 +29,10 @@
     async buildMix(project, assets, duration, tl) {
       const m = project.music;
       const tracks = m.tracks.map((t) => ({ t, a: assets.audio.get(t.assetId) })).filter((x) => x.a && x.a.buffer);
-      const vids = ((tl && tl.items) || []).filter((it) => it.slide.type === 'video' && !it.slide.muted && (it.slide.volume == null || it.slide.volume > 0))
-        .map((it) => ({ it, a: assets.images.get(it.slide.assetId) })).filter((x) => x.a && x.a.audioBuffer);
+      /* every timeline entry that plays a video: video slides and videos attached to the opening / ending */
+      const vids = ((tl && tl.items) || []).map((it) => ({ it, v: RV.videoOf(it.slide) }))
+        .filter((x) => x.v && !x.v.muted && (x.v.volume == null || x.v.volume > 0))
+        .map((x) => ({ it: x.it, v: x.v, a: assets.images.get(x.v.assetId) })).filter((x) => x.a && x.a.audioBuffer);
       if ((!tracks.length && !vids.length) || duration <= 0) return null;
       const frames = Math.ceil(duration * SR);
       const off = new OfflineAudioContext(2, frames, SR);
@@ -40,11 +42,11 @@
       const vol = m.volume == null ? 1 : m.volume;
 
       /* video clip audio (bypasses music fades/ducking) */
-      for (const { it, a } of vids) {
+      for (const { it, v, a } of vids) {
         const src = off.createBufferSource(); src.buffer = a.audioBuffer;
-        const g = off.createGain(); g.gain.value = it.slide.volume == null ? 1 : it.slide.volume;
+        const g = off.createGain(); g.gain.value = v.volume == null ? 1 : v.volume;
         src.connect(g); g.connect(off.destination);
-        const inPt = Math.max(0, +it.slide.in || 0);
+        const inPt = Math.max(0, +v.in || 0);
         const len = Math.max(0, Math.min(it.duration, a.audioBuffer.duration - inPt));
         if (len > 0) src.start(it.start, inPt, len);
       }

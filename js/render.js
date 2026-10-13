@@ -61,11 +61,12 @@
       const active = new Set(), jobs = [];
       if (loc) {
         for (const [item] of [[loc.a], [loc.b]]) {
-          if (!item || item.slide.type !== 'video') continue;
-          const a = assets.images.get(item.slide.assetId);
+          const vs = item && RV.videoOf(item.slide);
+          if (!vs) continue;
+          const a = assets.images.get(vs.assetId);
           if (!a || !a.video) continue;
           const v = a.video; active.add(v);
-          const local = (+item.slide.in || 0) + Math.max(0, t - item.start);
+          const local = (+vs.in || 0) + Math.max(0, t - item.start);
           const target = Math.max(0, Math.min(local, (a.duration || v.duration || 0) - 0.04));
           if (mode === 'play') {
             if (v.paused || Math.abs(v.currentTime - target) > 0.25) { v.currentTime = target; jobs.push(v.play().catch(() => {})); }
@@ -211,48 +212,113 @@
     drawTitle(ctx, s, u, t, dur, project, assets) {
       const W = this.W, H = this.H, S = Math.min(W, H), sc = S / 1080;
       const src = s.src || {}, style = src.style || 'classic';
-      const photos = project.slides.filter((p) => p.type === 'photo' && p.assetId);
-      const ref = s.role === 'opening' ? photos[0] : photos[photos.length - 1];
-      const img = ref && assets.images.get(ref.assetId);
-      const tIn = Math.min(0.8, dur * 0.3), tOut = Math.min(0.6, dur * 0.25);
-      const tl = u * dur;
-      const alpha = Math.min(1, tl / tIn, (dur - tl) / tOut);
+      const m = s.media || null, ma = m && assets.images.get(m.assetId);
+      const mw = ma ? (ma.width || (ma.video && ma.video.videoWidth) || 0) : 0, mh = ma ? (ma.height || (ma.video && ma.video.videoHeight) || 0) : 0;
+      const hasMedia = !!(ma && ma.bitmap && mw && mh);
+      const layoutM = hasMedia ? (m.fit || 'cover') : '';
+      const title = src.title || '', sub = src.subtitle || '';
+      const hasText = !!(title.trim() || sub.trim());
 
-      if (style === 'minimal') { ctx.fillStyle = '#f7f7f5'; ctx.fillRect(0, 0, W, H); }
-      else if (img && img.bitmap) {
-        ctx.drawImage(this.blurredBg(img, ref, Object.assign({}, project, { blurDarken: 0.6 })), 0, 0);
-      } else RV.drawBackground(ctx, W, H, 'night');
+      /* text timing: the whole card, or - on a long video card - the first (opening) / last (ending) N seconds */
+      const now = u * dur;
+      const [w0, w1] = RV.titleTextWindow(s, dur);
+      const wd = Math.max(0.01, w1 - w0), tl = now - w0;
+      const tIn = Math.min(0.8, wd * 0.3), tOut = Math.min(0.6, wd * 0.25);
+      const alpha = tl < 0 || tl > wd ? 0 : Math.max(0, Math.min(1, tl / Math.max(tIn, 0.01), (wd - tl) / Math.max(tOut, 0.01)));
+
+      /* 1. background */
+      if (layoutM === 'cover' || layoutM === 'contain') {
+        ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+        if (layoutM === 'contain') {
+          if (m.type === 'video') this.cheapBlur(ctx, ma, mw, mh);
+          else ctx.drawImage(this.blurredBg(ma, m, Object.assign({}, project, { blurDarken: 0.45 })), 0, 0);
+          const k = Math.min(W / mw, H / mh);
+          ctx.drawImage(ma.bitmap, (W - mw * k) / 2, (H - mh * k) / 2, mw * k, mh * k);
+        } else {
+          /* photos drift in slowly; videos stay still */
+          const z = m.type === 'video' ? 1 : 1 + 0.06 * RV.easeInOut(u);
+          const k = Math.max(W / mw, H / mh) * z;
+          ctx.imageSmoothingQuality = 'high';
+          ctx.drawImage(ma.bitmap, (W - mw * k) / 2, (H - mh * k) / 2, mw * k, mh * k);
+        }
+        /* keep the words readable: shade the picture while they are on screen */
+        if (hasText && alpha > 0) {
+          ctx.fillStyle = style === 'minimal' ? 'rgba(247,247,245,' + (0.72 * alpha) + ')' : 'rgba(0,0,0,' + ((style === 'cinematic' ? 0.3 : 0.38) * alpha) + ')';
+          ctx.fillRect(0, 0, W, H);
+        }
+      } else {
+        const photos = project.slides.filter((p) => p.type === 'photo' && p.assetId);
+        const ref = s.role === 'opening' ? photos[0] : photos[photos.length - 1];
+        const img = ref && assets.images.get(ref.assetId);
+        if (style === 'minimal') { ctx.fillStyle = '#f7f7f5'; ctx.fillRect(0, 0, W, H); }
+        else if (img && img.bitmap) ctx.drawImage(this.blurredBg(img, ref, Object.assign({}, project, { blurDarken: 0.6 })), 0, 0);
+        else RV.drawBackground(ctx, W, H, 'night');
+      }
 
       if (style === 'cinematic') { ctx.fillStyle = '#000'; const bar = H * 0.12; ctx.fillRect(0, 0, W, bar); ctx.fillRect(0, H - bar, W, bar); }
 
-      const title = src.title || '', sub = src.subtitle || '';
-      const titleColor = style === 'minimal' ? '#222' : (style === 'cinematic' ? '#f1d27a' : '#fff');
-      const subColor = style === 'minimal' ? '#666' : 'rgba(255,255,255,0.85)';
-      const family = style === 'cinematic' ? '"바탕", "Georgia", serif' : '"맑은 고딕", "Segoe UI", sans-serif';
-      ctx.save();
-      ctx.globalAlpha = Math.max(0, alpha);
-      ctx.translate(W / 2, H / 2);
-      const grow = style === 'cinematic' ? 1 : 1.06 - 0.06 * RV.easeOut(Math.min(1, tl / Math.max(tIn, 0.01)));
-      ctx.scale(grow, grow);
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      if (style !== 'minimal') { ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 24 * sc; ctx.shadowOffsetY = 4 * sc; }
-      const tsize = Math.round((title.length > 14 ? 72 : 96) * sc);
-      ctx.font = (style === 'cinematic' ? '' : 'bold ') + tsize + 'px ' + family;
-      if (style === 'cinematic') ctx.letterSpacing = Math.round(tsize * 0.25) + 'px';
-      const lines = this.wrap(ctx, title, W * 0.85);
-      const lh = tsize * 1.25; const total = lines.length * lh + (sub ? tsize * 0.6 + tsize * 0.5 : 0);
-      let y = -total / 2 + lh / 2;
-      ctx.fillStyle = titleColor;
-      lines.forEach((ln) => { ctx.fillText(ln, 0, y); y += lh; });
-      ctx.letterSpacing = '0px';
-      if (style === 'minimal') { ctx.fillStyle = '#e8562a'; ctx.fillRect(-40 * sc, y - lh / 2 + 6 * sc, 80 * sc, 4 * sc); y += 20 * sc; }
-      if (sub) {
-        const ssize = Math.round(tsize * 0.42); ctx.font = ssize + 'px ' + family; ctx.fillStyle = subColor;
-        const sl = this.wrap(ctx, sub, W * 0.8); y += ssize * 0.4;
-        sl.forEach((ln) => { ctx.fillText(ln, 0, y); y += ssize * 1.4; });
+      /* 2. logo layout: the picture sits above the words and fades with them */
+      let textY = H / 2;
+      if (layoutM === 'logo') {
+        const boxW = W * (hasText ? 0.5 : 0.7), boxH = H * (hasText ? 0.36 : 0.6);
+        const cy = hasText ? H * 0.36 : H / 2;
+        const k = Math.min(boxW / mw, boxH / mh);
+        /* the picture stays for the whole card (a long video keeps showing); only the words use the text window */
+        const mIn = Math.max(0.01, Math.min(0.8, dur * 0.3)), mOut = Math.max(0.01, Math.min(0.6, dur * 0.25));
+        const mAlpha = Math.max(0, Math.min(1, now / mIn, (dur - now) / mOut));
+        ctx.save(); ctx.globalAlpha = mAlpha;
+        if (style !== 'minimal') { ctx.shadowColor = 'rgba(0,0,0,0.45)'; ctx.shadowBlur = 20 * sc; ctx.shadowOffsetY = 4 * sc; }
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(ma.bitmap, W / 2 - mw * k / 2, cy - mh * k / 2, mw * k, mh * k);
+        ctx.restore();
+        if (hasText) textY = H * 0.72;
       }
-      ctx.restore();
+
+      /* 3. words */
+      if (hasText) {
+        const titleColor = style === 'minimal' ? '#222' : (style === 'cinematic' ? '#f1d27a' : '#fff');
+        const subColor = style === 'minimal' ? '#666' : 'rgba(255,255,255,0.85)';
+        const family = style === 'cinematic' ? '"바탕", "Georgia", serif' : '"맑은 고딕", "Segoe UI", sans-serif';
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.translate(W / 2, textY);
+        const grow = style === 'cinematic' ? 1 : 1.06 - 0.06 * RV.easeOut(Math.min(1, Math.max(0, tl) / Math.max(tIn, 0.01)));
+        ctx.scale(grow, grow);
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        if (style !== 'minimal') { ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 24 * sc; ctx.shadowOffsetY = 4 * sc; }
+        const tsize = Math.round((title.length > 14 ? 72 : 96) * sc * (layoutM === 'logo' ? 0.8 : 1));
+        ctx.font = (style === 'cinematic' ? '' : 'bold ') + tsize + 'px ' + family;
+        if (style === 'cinematic') ctx.letterSpacing = Math.round(tsize * 0.25) + 'px';
+        const lines = title ? this.wrap(ctx, title, W * 0.85) : [];
+        const lh = tsize * 1.25; const total = lines.length * lh + (sub ? tsize * 0.6 + tsize * 0.5 : 0);
+        let y = -total / 2 + lh / 2;
+        ctx.fillStyle = titleColor;
+        lines.forEach((ln) => { ctx.fillText(ln, 0, y); y += lh; });
+        ctx.letterSpacing = '0px';
+        if (style === 'minimal' && lines.length) { ctx.fillStyle = '#e8562a'; ctx.fillRect(-40 * sc, y - lh / 2 + 6 * sc, 80 * sc, 4 * sc); y += 20 * sc; }
+        if (sub) {
+          const ssize = Math.round(tsize * 0.42); ctx.font = ssize + 'px ' + family; ctx.fillStyle = subColor;
+          const sl = this.wrap(ctx, sub, W * 0.8); y += ssize * 0.4;
+          sl.forEach((ln) => { ctx.fillText(ln, 0, y); y += ssize * 1.4; });
+        }
+        ctx.restore();
+      }
       RV.drawCinematic(ctx, W, H, project.cinematic, t, this.cineCache);
+    }
+
+    /* blurred, darkened full-frame copy of a playing video: draw it tiny and scale it up (cheap enough for every frame) */
+    cheapBlur(ctx, ma, mw, mh) {
+      const W = this.W, H = this.H;
+      if (!this.tiny) this.tiny = mkCanvas(48, 48);
+      const tw = 48, th = Math.max(8, Math.round(48 * H / W));
+      if (this.tiny.width !== tw || this.tiny.height !== th) { this.tiny.width = tw; this.tiny.height = th; }
+      const x = this.tiny.getContext('2d');
+      const k = Math.max(tw / mw, th / mh);
+      x.drawImage(ma.bitmap, (tw - mw * k) / 2, (th - mh * k) / 2, mw * k, mh * k);
+      ctx.save(); ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(this.tiny, 0, 0, W, H);
+      ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.fillRect(0, 0, W, H);
+      ctx.restore();
     }
 
     wrap(ctx, text, maxW) {
