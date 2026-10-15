@@ -96,42 +96,90 @@
   /* video asset: <video> element for frames + decoded audio for the mix + thumbnail */
   async function makeVideoAsset(blob) {
     const url = URL.createObjectURL(blob);
-    const v = document.createElement('video');
-    v.muted = true; v.playsInline = true; v.preload = 'auto'; v.src = url;
-    await new Promise((res, rej) => {
-      v.onloadedmetadata = () => res();
-      v.onerror = () => rej(new Error('이 동영상 형식은 브라우저에서 재생할 수 없습니다.'));
-      setTimeout(() => rej(new Error('동영상을 여는 데 시간이 너무 오래 걸립니다.')), 30000);
-    });
-    if (!v.videoWidth) throw new Error('영상 트랙이 없는 파일입니다.');
-    await RV.seekVideo(v, Math.min(0.5, v.duration / 2));
-    const tw = 220, th = Math.round(tw * v.videoHeight / v.videoWidth) || 1;
-    const c = document.createElement('canvas'); c.width = tw; c.height = th;
-    c.getContext('2d').drawImage(v, 0, 0, tw, th);
+    const v = RV.makeVideoEl(url);
+    try {
+      await new Promise((res, rej) => {
+        v.onloadedmetadata = () => res();
+        v.onerror = () => rej(new Error('이 동영상 형식은 브라우저에서 재생할 수 없습니다.'));
+        setTimeout(() => rej(new Error('동영상을 여는 데 시간이 너무 오래 걸립니다.')), 30000);
+      });
+      if (!v.videoWidth) throw new Error('영상 트랙이 없는 파일입니다.');
+    } catch (e) { RV.dropVideoEl(v); URL.revokeObjectURL(url); throw e; }
     let audioBuffer = null;
     try { audioBuffer = await RV.audio.ctx.decodeAudioData(await blob.arrayBuffer()); } catch (e) { audioBuffer = null; }
-    const asset = { bitmap: v, video: v, url, width: v.videoWidth, height: v.videoHeight, duration: v.duration, thumb: c.toDataURL('image/jpeg', 0.8), audioBuffer, strip: null };
+    const asset = { bitmap: v, video: v, url, width: v.videoWidth, height: v.videoHeight, duration: v.duration, thumb: '', thumbDark: false, audioBuffer, strip: null };
+    await makeVideoThumb(asset, false);
     makeFilmstrip(asset).then(() => { const s = trimTarget(); if (s && S.assets.images.get(s.assetId) === asset) syncSlideControls(); });
     return asset;
   }
-  /* filmstrip for the trimmer: N frames across the clip, rendered from a private <video> clone */
-  async function makeFilmstrip(asset) {
-    const N = 14, fw = 96, fh = 54;
-    const v = document.createElement('video'); v.muted = true; v.playsInline = true; v.preload = 'auto'; v.src = asset.url;
-    await new Promise((res) => { v.onloadedmetadata = () => res(); v.onerror = () => res(); setTimeout(res, 15000); });
-    if (!v.videoWidth) return;
-    const c = document.createElement('canvas'); c.width = fw * N; c.height = fh; const x = c.getContext('2d');
-    const sc = Math.max(fw / v.videoWidth, fh / v.videoHeight), dw = v.videoWidth * sc, dh = v.videoHeight * sc;
-    for (let i = 0; i < N; i++) {
-      await RV.seekVideo(v, Math.min(asset.duration - 0.05, (i + 0.5) / N * asset.duration));
-      x.drawImage(v, i * fw + (fw - dw) / 2, (fh - dh) / 2, dw, dh);
+  /* thumbnail = the first scene; if the phone hands back only black (frame not decoded yet), try a little later in
+     the clip, and failing that again on the next taps (playback is always allowed inside a tap) */
+  const pendingThumbs = new Map();   /* asset -> { tries, busy } */
+  const markPending = (as) => { if (!pendingThumbs.has(as)) pendingThumbs.set(as, { tries: 0, busy: false }); };
+  async function makeVideoThumb(asset, isRetry, el) {
+    const v = el || asset.video, d = asset.duration || 0;
+    if (!v || !asset.width || !asset.height) return false;
+    const tw = 220, th = Math.round(tw * asset.height / asset.width) || 1;
+    let shot = null, first = true;
+    for (const t of [Math.min(0.2, d / 2), Math.min(1, d * 0.3), d * 0.5]) {
+      shot = await RV.grabVideoFrame(v, t, tw, th, !!isRetry && first);   /* the first call plays synchronously inside the tap */
+      first = false;
+      if (!shot.dark) break;
     }
-    try { v.removeAttribute('src'); v.load(); } catch (e) { /* ignore */ }
-    asset.strip = c.toDataURL('image/jpeg', 0.7);
+    if (!shot.dark || !asset.thumb) asset.thumb = shot.canvas.toDataURL('image/jpeg', 0.8);
+    asset.thumbDark = shot.dark;
+    if (shot.dark && !isRetry) markPending(asset);
+    return !shot.dark;
   }
+  let touchScrolled = false;
+  function retryVideoThumbs(e) {
+    if (!pendingThumbs.size) return;
+    if (e && e.type === 'touchend' && touchScrolled) return;   /* the touch became a scroll: no permission to play */
+    pendingThumbs.forEach((st, as) => {
+      if (st.busy) return;
+      if (!as.video || !as.video.getAttribute('src')) { pendingThumbs.delete(as); return; }   /* released meanwhile */
+      st.busy = true;
+      /* a private element, started right here inside the tap, so the phone lets it play and decode */
+      const pv = RV.makeVideoEl(as.url);
+      let played = false; pv.addEventListener('playing', () => { played = true; }, { once: true });
+      try { const p = pv.play(); if (p && p.catch) p.catch(() => {}); } catch (err) { /* ignore */ }
+      (async () => {
+        try {
+          const ok = as.thumbDark ? await makeVideoThumb(as, true, pv) : true;
+          if (!as.strip) await makeFilmstrip(as, pv);
+          if (played) st.tries++;   /* a touch that was not allowed to play does not use up an attempt */
+          if ((ok && as.strip) || st.tries >= 3) pendingThumbs.delete(as);
+          if (ok) { renderTimelineStrip(); renderTitleMedia(); emit('update'); }
+          const s = trimTarget(); if (s && S.assets.images.get(s.assetId) === as) syncSlideControls();
+        } catch (err) { console.warn('thumbnail retry', err); }
+        finally { st.busy = false; RV.dropVideoEl(pv); }
+      })();
+    });
+  }
+  /* filmstrip for the trimmer: N frames across the clip, rendered from a private <video> */
+  async function makeFilmstrip(asset, el) {
+    const N = 14, fw = 96, fh = 54;
+    const v = el || RV.makeVideoEl(asset.url);
+    try {
+      if (v.readyState < 1) await new Promise((res) => { const fin = () => { v.removeEventListener('loadedmetadata', fin); v.removeEventListener('error', fin); clearTimeout(t); res(); }; const t = setTimeout(fin, 15000); v.addEventListener('loadedmetadata', fin); v.addEventListener('error', fin); });
+      if (!v.videoWidth) return;
+      const c = document.createElement('canvas'); c.width = fw * N; c.height = fh; const x = c.getContext('2d');
+      let dark = 0;
+      for (let i = 0; i < N; i++) {
+        const shot = await RV.grabVideoFrame(v, Math.min(asset.duration - 0.05, (i + 0.5) / N * asset.duration), fw, fh);
+        if (shot.dark) dark++;
+        x.drawImage(shot.canvas, i * fw, 0);
+      }
+      if (dark < N) asset.strip = c.toDataURL('image/jpeg', 0.7);
+      else markPending(asset);   /* all black = not decoded yet: a later tap tries again */
+    } finally { if (!el) RV.dropVideoEl(v); }
+  }
+  function disposeVideoAsset(as) { if (!as || !as.video) return; pendingThumbs.delete(as); RV.dropVideoEl(as.video); try { URL.revokeObjectURL(as.url); } catch (e) { /* ignore */ } }
+  /* an asset that was made but could not be saved */
+  function discardUnsaved(as) { if (!as) return; if (as.video) disposeVideoAsset(as); else if (as.bitmap && as.bitmap.close) { try { as.bitmap.close(); } catch (e) { /* ignore */ } } }
   function releaseAsset(id) {
     const a = S.assets.images.get(id);
-    if (a && a.url) { try { a.video.pause(); a.video.removeAttribute('src'); a.video.load(); } catch (e) { /* ignore */ } URL.revokeObjectURL(a.url); }
+    if (a && a.url) disposeVideoAsset(a);
     if (a && a.bitmap && a.bitmap.close) { try { a.bitmap.close(); } catch (e) { /* ignore */ } }
     S.assets.images.delete(id);
   }
@@ -292,7 +340,7 @@
         if (video) toast('동영상 분석 중: ' + f.name);
         const asset = video ? await makeVideoAsset(f) : await makeImageAsset(f);
         const id = RV.uid(video ? 'vid' : 'img');
-        await RV.store.putAsset(id, { blob: f, name: f.name, kind: video ? 'video' : 'image' });
+        try { await RV.store.putAsset(id, { blob: f, name: f.name, kind: video ? 'video' : 'image' }); } catch (err) { discardUnsaved(asset); throw err; }
         S.assets.images.set(id, asset);
         const slide = RV.createSlide(video
           ? { type: 'video', name: f.name, assetId: id, width: asset.width, height: asset.height, srcDuration: asset.duration, in: 0, out: 0, volume: 1, muted: false, mtime: f.lastModified || 0 }
@@ -330,7 +378,7 @@
     try {
       const asset = video ? await makeVideoAsset(file) : await makeImageAsset(file);
       const id = RV.uid(video ? 'vid' : 'img');
-      await RV.store.putAsset(id, { blob: file, name: file.name, kind: video ? 'video' : 'image' });
+      try { await RV.store.putAsset(id, { blob: file, name: file.name, kind: video ? 'video' : 'image' }); } catch (err) { discardUnsaved(asset); throw err; }
       S.assets.images.set(id, asset);
       const src = S.project[role], old = src.media;
       const m = { id: '__' + role, type: video ? 'video' : 'photo', assetId: id, name: file.name, width: asset.width, height: asset.height, fit: !video && looksLikeLogo(file, asset) ? 'logo' : 'cover' };
@@ -1426,6 +1474,9 @@
 
     /* operator usage */
     on('#btnUsage', 'click', openUsage);
+    document.addEventListener('pointerdown', () => { touchScrolled = false; }, true);
+    document.addEventListener('pointercancel', () => { touchScrolled = true; }, true);   /* iOS: the touch turned into a scroll */
+    document.addEventListener('pointerup', retryVideoThumbs, true); document.addEventListener('touchend', retryVideoThumbs, true);
     on('#btnMobileUI', 'click', () => RV.switchUI && RV.switchUI('mobile'));
     on('#btnUiSwitch', 'click', () => RV.switchUI && RV.switchUI(document.documentElement.classList.contains('m-ui') ? 'pc' : 'mobile')); on('#usLoad', 'click', loadUsage);
     /* bookmarkable shortcut for the operator: https://.../#usage */

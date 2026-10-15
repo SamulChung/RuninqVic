@@ -5,17 +5,89 @@
   function mkCanvas(w, h) {
     const c = document.createElement('canvas'); c.width = w; c.height = h; return c;
   }
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  /* Safari can report 'seeked' before the new frame can be drawn: wait for it to be presented (bounded) */
+  function framePresented(video, ms) {
+    return new Promise((res) => {
+      if (!video.requestVideoFrameCallback) return res();
+      let done = false; const fin = () => { if (!done) { done = true; res(); } };
+      try { video.requestVideoFrameCallback(fin); } catch (e) { fin(); }
+      setTimeout(fin, ms);
+    });
+  }
   function seekTo(video, t) {
     return new Promise((res) => {
       if (video.readyState >= 2 && Math.abs(video.currentTime - t) < 0.012) return res();
       let done = false;
-      const fin = () => { if (done) return; done = true; video.removeEventListener('seeked', fin); clearTimeout(timer); res(); };
+      const fin = () => { if (done) return; done = true; video.removeEventListener('seeked', fin); clearTimeout(timer); framePresented(video, 120).then(res); };
       const timer = setTimeout(fin, 2000);
       video.addEventListener('seeked', fin);
       try { video.currentTime = t; } catch (e) { fin(); }
     });
   }
   RV.seekVideo = seekTo;
+
+  /* iPhone/iPad (WebKit) only decodes frames of a <video> that is in the page - an invisible 2 px spot is enough -
+     and often only after it has played once. Every video the app draws from is made here. */
+  let host = null;
+  RV.videoHost = function () {
+    if (host && host.isConnected) return host;
+    host = document.createElement('div'); host.setAttribute('aria-hidden', 'true'); host.className = 'rv-video-host';
+    host.style.cssText = 'position:fixed;left:0;top:0;width:2px;height:2px;overflow:hidden;opacity:0.01;pointer-events:none;z-index:-1;';
+    (document.body || document.documentElement).appendChild(host);
+    return host;
+  };
+  RV.makeVideoEl = function (url) {
+    const v = document.createElement('video');
+    v.muted = true; v.defaultMuted = true; v.setAttribute('muted', '');
+    v.playsInline = true; v.setAttribute('playsinline', ''); v.setAttribute('webkit-playsinline', '');
+    v.preload = 'auto'; v.style.cssText = 'width:2px;height:2px;';
+    v.src = url;
+    RV.videoHost().appendChild(v);
+    return v;
+  };
+  RV.dropVideoEl = function (v) {
+    if (!v) return;
+    try { v.pause(); v.removeAttribute('src'); v.load(); } catch (e) { /* ignore */ }
+    if (v.parentNode) v.parentNode.removeChild(v);
+  };
+  /* make sure a decoded frame exists (WebKit on phones: play for a moment). Done once per element.
+     opts.force: play even if a frame seems ready (a retry inside a tap); opts.isCurrent(): false = a newer request
+     owns the element, so do not pause it */
+  RV.primeVideo = async function (v, opts) {
+    opts = opts || {};
+    if (v.readyState >= 2 && !opts.force) { v._rvPrimed = true; return true; }
+    try { const p = v.play(); if (p && p.catch) await Promise.race([p.catch(() => {}), sleep(1200)]); } catch (e) { /* not allowed now */ }
+    await new Promise((res) => {
+      if (v.readyState >= 2) return res();
+      const evs = ['loadeddata', 'canplay', 'playing', 'seeked'];
+      const done = () => { clearTimeout(t); evs.forEach((n) => v.removeEventListener(n, done)); res(); };
+      const t = setTimeout(done, 1500); evs.forEach((n) => v.addEventListener(n, done));
+    });
+    if (!v.paused) await framePresented(v, 300);   /* let one frame really render while it plays */
+    if (!opts.isCurrent || opts.isCurrent()) { try { v.pause(); } catch (e) { /* ignore */ } }
+    if (v.readyState >= 2) v._rvPrimed = true;
+    return v.readyState >= 2;
+  };
+  /* the frame at time t, cover-fitted into w x h; dark=true when nothing but black came out (frame not decoded) */
+  RV.grabVideoFrame = async function (v, t, w, h, force) {
+    const c = mkCanvas(w, h), x = c.getContext('2d', { willReadFrequently: true });
+    x.fillStyle = '#000'; x.fillRect(0, 0, w, h);
+    await RV.primeVideo(v, { force: !!force });
+    if (!v.paused) v.pause();
+    await seekTo(v, Math.max(0, Math.min(t, (v.duration || t) - 0.05)));
+    const vw = v.videoWidth, vh = v.videoHeight;
+    if (!vw || !vh) return { canvas: c, dark: true };
+    const k = Math.max(w / vw, h / vh);
+    try { x.drawImage(v, (w - vw * k) / 2, (h - vh * k) / 2, vw * k, vh * k); } catch (e) { return { canvas: c, dark: true }; }
+    let dark = false;
+    try {
+      const d = x.getImageData(0, 0, w, h).data; let sum = 0, n = 0, max = 0;
+      for (let i = 0; i < d.length; i += 4 * 5) { const l = d[i] + d[i + 1] + d[i + 2]; sum += l; n++; if (l > max) max = l; }
+      dark = sum / n < 15 && max < 75;
+    } catch (e) { dark = false; }
+    return { canvas: c, dark };
+  };
   /* export helper: make the playing video reach `target` (seconds); returns when a frame at >= target is presented */
   async function reachTime(v, target) {
     const TOL = 0.02, AHEAD = 0.35;
@@ -68,13 +140,17 @@
           const v = a.video; active.add(v);
           const local = (+vs.in || 0) + Math.max(0, t - item.start);
           const target = Math.max(0, Math.min(local, (a.duration || v.duration || 0) - 0.04));
+          const gen = v._rvGen = (v._rvGen || 0) + 1, current = () => v._rvGen === gen;
           if (mode === 'play') {
-            if (v.paused || Math.abs(v.currentTime - target) > 0.25) { v.currentTime = target; jobs.push(v.play().catch(() => {})); }
+            if (v.paused || Math.abs(v.currentTime - target) > 0.25) { v.currentTime = target; jobs.push(v.play().then(() => { v._rvPrimed = true; }).catch(() => {})); }
           } else if (mode === 'export') {
             jobs.push(reachTime(v, target));
           } else {
             if (!v.paused) v.pause();
-            jobs.push(seekTo(v, target));
+            jobs.push((async () => {
+              if (!v._rvPrimed && v.readyState < 2 && !v.seeking) await RV.primeVideo(v, { isCurrent: current });
+              if (current()) await seekTo(v, target);
+            })());
           }
         }
       }

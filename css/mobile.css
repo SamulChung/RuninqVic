@@ -182,3 +182,5 @@ html.m-ui #btnRotL, html.m-ui #btnRotR { display: none; }
 /* PC version on a narrow phone: no room for the 📱 button (the help dialog has [📱 모바일 버전]) */
 @media (max-width: 440px) { #btnMobileUI { display: none !important; } }
 .m-link.m-addtext { margin-top: 6px; text-align: left; padding: 0 2px; }
+/* a video whose first frame could not be read yet (it is retried on the next tap) */
+.m-tile .vt { position: absolute; inset: 0; display: grid; place-items: center; font-size: 30px; opacity: .85; pointer-events: none; }

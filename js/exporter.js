@@ -59,12 +59,12 @@
     const images = new Map(); const clones = [];
     for (const [id, a] of assets.images) {
       if (!a.video || !a.url) { images.set(id, a); continue; }
-      const v = document.createElement('video'); v.muted = true; v.preload = 'auto'; v.playsInline = true; v.src = a.url;
+      const v = RV.makeVideoEl(a.url);
       await new Promise((res) => { v.onloadedmetadata = () => res(); v.onerror = () => res(); setTimeout(res, 15000); });
       clones.push(v);
       images.set(id, Object.assign({}, a, { bitmap: v, video: v }));
     }
-    return { assets: { images, audio: assets.audio }, dispose: () => clones.forEach((v) => { try { v.pause(); v.removeAttribute('src'); v.load(); } catch (e) { /* ignore */ } }) };
+    return { assets: { images, audio: assets.audio }, dispose: () => clones.forEach((v) => RV.dropVideoEl(v)) };
   }
 
   RV.exportVideo = async function (project, tl, opts) {

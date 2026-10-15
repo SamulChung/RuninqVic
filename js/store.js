@@ -14,7 +14,7 @@
     return open().then((db) => new Promise((res, rej) => {
       const t = db.transaction(store, mode); const s = t.objectStore(store); const out = fn(s);
       t.oncomplete = () => { db.close(); res(out && out.result !== undefined ? out.result : out); };
-      t.onerror = () => { db.close(); rej(t.error); };
+      t.onerror = t.onabort = () => { db.close(); rej(t.error || new Error('저장 공간이 부족합니다.')); };
     }));
   }
 

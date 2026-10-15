@@ -125,7 +125,7 @@
         b.appendChild(d);
       }
       b.insertAdjacentHTML('beforeend', '<span class="n">' + (i + 1) + '</span>' + (it ? '<span class="d">' + it.duration.toFixed(1) + '초</span>' : '') +
-        (s.type === 'video' ? '<span class="v">▶</span>' : '') + (s.caption && s.caption.text && s.type !== 'text' ? '<span class="c">자막</span>' : ''));
+        (s.type === 'video' ? '<span class="v">▶</span>' + (a && a.thumbDark ? '<span class="vt">🎬</span>' : '') : '') + (s.caption && s.caption.text && s.type !== 'text' ? '<span class="c">자막</span>' : ''));
       b.onclick = () => app().select(s.id, true);
       frag.appendChild(b);
     });
